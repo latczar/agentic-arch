@@ -4,7 +4,9 @@
 
 You tell it what you do by hand. It works out the steps, judges which ones a computer
 could take over, and, the part that matters, flags where a human has to stay in the
-loop and why.
+loop and why. Then it exports a workflow scaffold you can import into n8n.
+
+![The web interface, showing a supplier payment process with two steps flagged as needing a human](docs/screenshot.png)
 
 ---
 
@@ -179,6 +181,33 @@ npm run dev
 Then open http://localhost:5173. The two examples on the page are recorded, so they
 work with no API key.
 
+## Exporting it
+
+The **Export to n8n** button produces a workflow file that imports cleanly. It is a
+scaffold, not a running automation, and it says so on every node.
+
+That is deliberate. Guessing that someone means Gmail rather than Outlook or IMAP,
+then inventing the credentials and field mappings to match, produces a file that
+imports and fails in ways that are tedious to unpick. A skeleton with honest
+placeholders beats a confident wrong answer.
+
+What it does get right:
+
+- The shape. Steps, branches, and the order they run in.
+- Decisions become real IF nodes, not comments.
+- Approvals become real Wait nodes, so the pause is in the workflow rather than in a
+  paragraph somebody has to remember to read.
+- A threshold approval becomes an IF on the threshold, so "only above 5,000" is
+  encoded rather than described. This is what the structured threshold on a control
+  is for.
+- Every placeholder carries a note saying what to replace it with.
+
+From the command line:
+
+```bash
+.venv/Scripts/python scripts/analyse.py --replay --export-n8n workflow.json
+```
+
 ## How it works
 
 ```
@@ -286,16 +315,17 @@ cd backend
 .venv/Scripts/python -m pytest
 ```
 
-54 tests, none of which call an API. The model is substituted with a scripted
+65 tests, none of which call an API. The model is substituted with a scripted
 stand-in that returns deliberately broken output, so the repair loop can be tested
 precisely and for free.
 
 ## Status
 
-Working: the two-stage pipeline, validation, repair, record/replay, and a web front
-end with the process rendered as a diagram.
+Working: the two-stage pipeline, validation, repair, record/replay, a web front end
+with the process rendered as a diagram, and export to n8n.
 
-Next: export to n8n, then the time-saved arithmetic, then a shareable link.
+Next: the time-saved arithmetic, taking frequency and duration from the person rather
+than inventing them, then a shareable link.
 
 Built with Python, Pydantic and Gemini on the back end, React and React Flow on the
 front. British English throughout, and the example

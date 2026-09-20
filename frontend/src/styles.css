@@ -193,6 +193,20 @@ button:disabled {
   }
 }
 
+/* The verdict panel is usually far taller than the diagram. Pinning the diagram
+   keeps it in view while the reader works down the list, instead of leaving them
+   scrolling past a column of nothing. */
+.results__diagram {
+  position: sticky;
+  top: 24px;
+}
+
+@media (max-width: 900px) {
+  .results__diagram {
+    position: static;
+  }
+}
+
 .results h2 {
   margin: 0 0 4px;
   letter-spacing: -0.01em;
@@ -477,5 +491,32 @@ button:disabled {
 }
 
 .footer a {
+  color: var(--accent);
+}
+
+.results__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+/* Without this the title block claims the full width and pushes the button onto
+   its own line, where it reads as part of the diagram rather than an action. */
+.results__head > div {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.secondary {
+  background: transparent;
+  color: var(--text);
+  border-color: var(--border);
+  white-space: nowrap;
+}
+
+.secondary:hover:not(:disabled) {
+  border-color: var(--accent);
   color: var(--accent);
 }

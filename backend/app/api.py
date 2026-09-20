@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from app.assess import assess_process
+from app.export_n8n import to_n8n
 from app.extract import extract_process
 from app.llm.base import LLMError, StructuredLLM
 from app.llm.gemini import GeminiClient
@@ -157,3 +158,19 @@ def _describe(attempts) -> list[AttemptInfo]:
     return [
         AttemptInfo(number=a.number, ok=a.ok, errors=a.errors) for a in attempts
     ]
+
+
+class ExportRequest(BaseModel):
+    graph: ProcessGraph
+    plan: AutomationPlan | None = None
+
+
+@app.post("/api/export/n8n")
+def export_n8n(request: ExportRequest) -> dict:
+    """An importable n8n workflow scaffold for a process already analysed.
+
+    Takes the graph and plan back from the client rather than re-running the
+    pipeline, so exporting costs nothing and always matches what is on screen.
+    """
+
+    return to_n8n(request.graph, request.plan)

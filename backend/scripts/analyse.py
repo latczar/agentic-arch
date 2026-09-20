@@ -17,6 +17,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.assess import AssessmentResult, assess_process  # noqa: E402
+from app.export_n8n import to_n8n_json  # noqa: E402
 from app.extract import ExtractionResult, extract_process  # noqa: E402
 from app.llm.base import LLMError  # noqa: E402
 from app.llm.gemini import GeminiClient  # noqa: E402
@@ -51,6 +52,12 @@ def main() -> int:
     parser.add_argument("--file", type=Path, help="Read the description from a file.")
     parser.add_argument("--attempts", type=int, default=3, help="Max tries before giving up.")
     parser.add_argument("--model", help="Override the Gemini model.")
+    parser.add_argument(
+        "--export-n8n",
+        type=Path,
+        metavar="FILE",
+        help="Also write an importable n8n workflow scaffold to this path.",
+    )
     parser.add_argument(
         "--replay",
         nargs="?",
@@ -111,6 +118,15 @@ def main() -> int:
         return 1
 
     show_plan(assessment.plan)
+
+    if args.export_n8n:
+        args.export_n8n.write_text(
+            to_n8n_json(extraction.graph, assessment.plan), encoding="utf-8"
+        )
+        print(f"
+Wrote {args.export_n8n}. Import it into n8n from Workflows > Import from File.")
+        print("The integration nodes are placeholders; each one says what to replace it with.")
+
     return 0
 
 

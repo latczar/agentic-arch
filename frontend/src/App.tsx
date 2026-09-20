@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { analyse, fetchExamples } from "./api";
+import { analyse, download, exportN8n, fetchExamples } from "./api";
 import { Diagram } from "./components/Diagram";
 import { Verdicts } from "./components/Verdicts";
 import type { AnalyseResponse, Example } from "./types";
@@ -13,6 +13,7 @@ export default function App() {
   const [selected, setSelected] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     fetchExamples().then(setExamples).catch(() => setExamples([]));
@@ -31,6 +32,20 @@ export default function App() {
       setError(exc instanceof Error ? exc.message : "Something went wrong.");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function exportWorkflow() {
+    if (!result?.graph) return;
+    setExporting(true);
+    try {
+      const blob = await exportN8n(result.graph, result.plan);
+      const name = result.graph.title.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+      download(blob, `${name}.n8n.json`);
+    } catch (exc) {
+      setError(exc instanceof Error ? exc.message : "Could not build the export.");
+    } finally {
+      setExporting(false);
     }
   }
 
@@ -125,8 +140,20 @@ export default function App() {
       {result?.graph && (
         <main className="results">
           <div className="results__diagram">
-            <h2>{result.graph.title}</h2>
-            <p className="results__summary">{result.graph.summary}</p>
+            <div className="results__head">
+              <div>
+                <h2>{result.graph.title}</h2>
+                <p className="results__summary">{result.graph.summary}</p>
+              </div>
+              <button
+                className="secondary"
+                onClick={exportWorkflow}
+                disabled={exporting}
+                title="An importable n8n workflow. Integration nodes are placeholders."
+              >
+                {exporting ? "Building..." : "Export to n8n"}
+              </button>
+            </div>
             <Diagram
               graph={result.graph}
               plan={result.plan}

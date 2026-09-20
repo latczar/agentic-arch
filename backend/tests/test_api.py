@@ -66,3 +66,39 @@ def test_an_unknown_case_is_reported_not_crashed():
 
 def test_a_too_short_description_is_rejected():
     assert client.post("/api/analyse", json={"description": "hi"}).status_code == 422
+
+
+def test_the_export_endpoint_returns_an_importable_workflow():
+    analysis = client.post(
+        "/api/analyse", json={"description": INVOICE, "case": "payment-no-approval"}
+    ).json()
+
+    workflow = client.post(
+        "/api/export/n8n",
+        json={"graph": analysis["graph"], "plan": analysis["plan"]},
+    ).json()
+
+    assert workflow["name"]
+    assert workflow["nodes"]
+
+    declared = {n["name"] for n in workflow["nodes"]}
+    for source, connection in workflow["connections"].items():
+        assert source in declared
+        for output in connection["main"]:
+            for target in output:
+                assert target["node"] in declared
+
+    # The guarded payment step should have picked up a real Wait node.
+    assert any(n["type"] == "n8n-nodes-base.wait" for n in workflow["nodes"])
+
+
+def test_exporting_without_a_plan_still_works():
+    analysis = client.post(
+        "/api/analyse", json={"description": INVOICE, "case": "invoice-with-approval"}
+    ).json()
+
+    workflow = client.post(
+        "/api/export/n8n", json={"graph": analysis["graph"]}
+    ).json()
+
+    assert workflow["nodes"]
