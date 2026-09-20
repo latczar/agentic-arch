@@ -1,0 +1,128 @@
+"""Tests for the judgement stage, again using a scripted stand-in for the model."""
+
+import json
+
+from app.assess import assess_process
+from app.schemas.process import Edge, ProcessGraph, Step, StepKind, Trigger, TriggerKind
+from tests.test_extract import ScriptedLLM
+
+
+def graph() -> ProcessGraph:
+    return ProcessGraph(
+        title="Invoice intake",
+        summary="Invoices arrive by email and end up in a spreadsheet.",
+        trigger=Trigger(
+            kind=TriggerKind.SCHEDULE,
+            description="Every morning",
+            first_step_id="find_invoice",
+        ),
+        steps=[
+            Step(id="find_invoice", name="Find it", description="...", kind=StepKind.READ),
+            Step(id="pay_invoice", name="Pay it", description="...", kind=StepKind.WRITE),
+        ],
+        edges=[Edge(from_step="find_invoice", to_step="pay_invoice")],
+    )
+
+
+def plan_dict(*, missing_step: bool = False, reckless: bool = False) -> dict:
+    assessments = [
+        {
+            "step_id": "find_invoice",
+            "verdict": "fully_automatable",
+            "rationale": "Reading the inbox is safe.",
+            "confidence": "high",
+            "risks": [],
+            "controls": [],
+            "blockers": [],
+        },
+        {
+            "step_id": "pay_invoice",
+            "verdict": "automatable_with_control",
+            "rationale": "It releases money, so it needs a second pair of eyes.",
+            "confidence": "high",
+            "risks": ["moves_money"],
+            "controls": [
+                {
+                    "kind": "threshold_approval",
+                    "reason": "Large payments wait for a person.",
+                    "addresses": ["moves_money"],
+                    "threshold": {
+                        "field": "invoice.total",
+                        "operator": "gt",
+                        "value": "5000",
+                        "value_type": "money",
+                        "currency": "GBP",
+                    },
+                    "who_approves": "whoever owns the ledger",
+                }
+            ],
+            "blockers": [],
+        },
+    ]
+
+    if reckless:
+        # The classic failure: money marked as safe to run unattended.
+        assessments[1] = {
+            "step_id": "pay_invoice",
+            "verdict": "fully_automatable",
+            "rationale": "It can just pay them.",
+            "confidence": "high",
+            "risks": ["moves_money"],
+            "controls": [],
+            "blockers": [],
+        }
+
+    if missing_step:
+        assessments = assessments[:1]
+
+    return {
+        "process_title": "Invoice intake",
+        "assessments": assessments,
+        "headline": "Most of this can run itself; payments stop for you.",
+        "biggest_win": "find_invoice",
+    }
+
+
+def test_a_sound_plan_is_accepted_first_time():
+    llm = ScriptedLLM([json.dumps(plan_dict())])
+    result = assess_process(graph(), llm)
+
+    assert result.ok
+    assert len(result.attempts) == 1
+
+
+def test_marking_a_payment_fully_automatic_is_rejected_and_repaired():
+    llm = ScriptedLLM([json.dumps(plan_dict(reckless=True)), json.dumps(plan_dict())])
+    result = assess_process(graph(), llm)
+
+    assert result.ok
+    assert not result.attempts[0].ok
+    assert any("moves_money" in e for e in result.attempts[0].errors)
+
+
+def test_a_skipped_step_is_caught_by_the_cross_check():
+    llm = ScriptedLLM([json.dumps(plan_dict(missing_step=True)), json.dumps(plan_dict())])
+    result = assess_process(graph(), llm)
+
+    assert result.ok
+    assert any("no assessment" in e for e in result.attempts[0].errors)
+
+
+def test_the_repair_prompt_shows_the_process_and_the_objections():
+    llm = ScriptedLLM([json.dumps(plan_dict(reckless=True)), json.dumps(plan_dict())])
+    assess_process(graph(), llm)
+
+    repair = llm.prompts[1]
+    assert "pay_invoice" in repair
+    assert "moves_money" in repair
+    assert "does not satisfy the rules" in repair
+
+
+def test_it_stops_early_when_the_same_fault_comes_back():
+    reckless = json.dumps(plan_dict(reckless=True))
+    llm = ScriptedLLM([reckless, reckless, reckless, reckless])
+    result = assess_process(graph(), llm, max_attempts=3)
+
+    assert not result.ok
+    assert result.plan is None
+    assert len(result.attempts) == 2

@@ -1,0 +1,17 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Secrets — never commit an API key
+.env
+*.key
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Note: backend/recordings/ is deliberately NOT ignored. Those are saved model
+# responses so the project can be run with `--replay` and no API key at all.

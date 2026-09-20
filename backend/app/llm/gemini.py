@@ -1,0 +1,120 @@
+"""Gemini implementation of the StructuredLLM seam.
+
+Chosen because its free tier is the most usable one for schema-constrained
+output. Nothing else in the codebase imports google.genai -- if that stops being
+true, the seam has leaked.
+"""
+
+from __future__ import annotations
+
+import os
+import random
+import time
+
+from app.llm.base import LLMError
+
+# Flash-Lite rather than the newest Flash, for one reason: quota. The free tier
+# allows roughly 20 requests a day on gemini-3.8-flash and several hundred on
+# the Lite models. Extraction is mechanical work -- reading a description and
+# filling in a form -- so a smaller model is a fair trade for being able to
+# actually run it. The judgement stage is where a stronger model earns its keep.
+# Picking a different model per stage is called model routing, and it is usually
+# the largest cost lever in an LLM application.
+DEFAULT_MODEL = "gemini-3.5-flash-lite"
+
+# HTTP statuses worth trying again: rate limited, or the provider is briefly
+# unwell. Anything else (a bad key, a malformed schema) will fail identically
+# however many times we ask, so retrying it just wastes the user's time.
+TRANSIENT_STATUSES = frozenset({429, 500, 502, 503, 504})
+
+
+class GeminiClient:
+    """Talks to Google AI Studio."""
+
+    def __init__(
+        self,
+        model: str = DEFAULT_MODEL,
+        api_key: str | None = None,
+        max_retries: int = 4,
+    ) -> None:
+        self.max_retries = max_retries
+        key = api_key or os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+        if not key:
+            raise LLMError(
+                "No Gemini API key found. Get a free one at https://aistudio.google.com "
+                'then run:  setx GEMINI_API_KEY "your-key"  and open a new terminal.'
+            )
+
+        try:
+            from google import genai
+        except ImportError as exc:  # pragma: no cover - install-time problem
+            raise LLMError("The google-genai package is not installed. Run: pip install google-genai") from exc
+
+        self._client = genai.Client(api_key=key)
+        self.model = model
+        self.name = f"gemini:{model}"
+
+    def generate_json(self, *, system: str, prompt: str, schema: dict) -> str:
+        """Ask for JSON, retrying through the provider having a bad moment.
+
+        Distinct from the repair loop in extract.py. That one handles a reply
+        that arrived and was wrong; this handles a reply that never arrived.
+        The delay doubles each time and carries a little randomness, so that a
+        burst of callers does not all come back at the same instant and cause
+        the pile-up again. That is standard exponential backoff with jitter.
+        """
+
+        delay = 2.0
+        for attempt in range(1, self.max_retries + 1):
+            try:
+                return self._request(system=system, prompt=prompt, schema=schema)
+            except LLMError:
+                raise
+            except Exception as exc:  # provider SDKs raise a wide range of types
+                if not _is_transient(exc) or attempt == self.max_retries:
+                    raise LLMError(f"Gemini request failed: {exc}") from exc
+                wait = delay + random.uniform(0, 1)
+                print(f"  {self.model} busy, retrying in {wait:.1f}s "
+                      f"(attempt {attempt} of {self.max_retries})...")
+                time.sleep(wait)
+                delay *= 2
+
+        raise LLMError("Unreachable: retry loop exited without returning.")
+
+    def _request(self, *, system: str, prompt: str, schema: dict) -> str:
+        # The Interactions API takes a single input string, so the system
+        # instruction is prepended rather than passed separately.
+        interaction = self._client.interactions.create(
+            model=self.model,
+            input=f"{system}\n\n---\n\n{prompt}",
+            response_format={
+                "type": "text",
+                "mime_type": "application/json",
+                "schema": schema,
+            },
+        )
+
+        text = getattr(interaction, "output_text", None)
+        if not text:
+            raise LLMError("Gemini returned an empty response.")
+        return text
+
+
+def _is_transient(exc: Exception) -> bool:
+    """Is this worth trying again, or will it fail the same way forever?
+
+    Not every 429 is alike, and the difference costs real quota. A per-minute
+    burst limit clears in a minute, so waiting is right. A daily quota does not
+    clear today, and on a metered tier each doomed retry can count against the
+    allowance that has already run out -- so we stop immediately and say so.
+    """
+
+    text = str(exc).lower()
+    status = getattr(exc, "status_code", None) or getattr(exc, "code", None)
+    if not isinstance(status, int):
+        status = next((c for c in TRANSIENT_STATUSES if str(c) in text), None)
+
+    if status == 429:
+        return not any(phrase in text for phrase in ("per day", "daily", "quota exceeded"))
+
+    return status in TRANSIENT_STATUSES

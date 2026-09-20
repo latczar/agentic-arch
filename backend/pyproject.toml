@@ -1,0 +1,19 @@
+[project]
+name = "ai-auto-arch"
+version = "0.1.0"
+description = "Turns a plain-English description of repetitive work into a validated automation architecture."
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.9",
+    "google-genai>=2.24",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.3", "ruff>=0.7"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 100

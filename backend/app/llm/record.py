@@ -1,0 +1,91 @@
+"""Record real model responses to disk, and replay them without a network call.
+
+This is the seam earning its keep. Both classes below satisfy the same
+StructuredLLM protocol as the real client, so anything that takes a model takes
+these too, with no changes.
+
+Why it matters here: the free tier is metered per day. Re-running the same
+description to work on the printing code is a waste of a scarce resource, and it
+makes development slower and less predictable. Record once, replay for free.
+
+The same trick is standard practice well beyond free tiers -- it is how you get
+tests that do not cost money, do not need the network, and give the same answer
+every time.
+"""
+
+from __future__ import annotations
+
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+
+from app.llm.base import LLMError, StructuredLLM
+
+DEFAULT_DIR = Path(__file__).resolve().parents[2] / "recordings"
+
+
+class RecordingLLM:
+    """Passes calls through to a real client, saving each response."""
+
+    def __init__(self, inner: StructuredLLM, directory: Path | None = None) -> None:
+        self.inner = inner
+        self.name = f"recording({inner.name})"
+        self.directory = directory or DEFAULT_DIR
+        self.directory.mkdir(parents=True, exist_ok=True)
+
+    def generate_json(self, *, system: str, prompt: str, schema: dict) -> str:
+        text = self.inner.generate_json(system=system, prompt=prompt, schema=schema)
+
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-%f")
+        path = self.directory / f"{stamp}.json"
+        path.write_text(
+            json.dumps(
+                {
+                    "model": self.inner.name,
+                    "recorded_at": datetime.now(timezone.utc).isoformat(),
+                    "prompt": prompt,
+                    "response": text,
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+        return text
+
+
+class ReplayLLM:
+    """Returns previously recorded responses, in the order they were recorded.
+
+    Deliberately does not try to match a prompt to a recording. Matching sounds
+    cleverer but goes wrong quietly -- a near-miss silently replays the wrong
+    answer. In order, and loudly when it runs out, is easier to trust.
+    """
+
+    def __init__(self, directory: Path | None = None) -> None:
+        self.directory = directory or DEFAULT_DIR
+        self.name = "replay"
+        self._responses = self._load()
+        self._position = 0
+
+    def _load(self) -> list[str]:
+        if not self.directory.exists():
+            raise LLMError(
+                f"No recordings in {self.directory}. Run once against a real model first."
+            )
+        responses = []
+        for path in sorted(self.directory.glob("*.json")):
+            data = json.loads(path.read_text(encoding="utf-8"))
+            responses.append(data["response"])
+        if not responses:
+            raise LLMError(f"No recordings in {self.directory}.")
+        return responses
+
+    def generate_json(self, *, system: str, prompt: str, schema: dict) -> str:
+        if self._position >= len(self._responses):
+            raise LLMError(
+                f"Ran out of recordings after {len(self._responses)}. "
+                "Record another run against a real model."
+            )
+        text = self._responses[self._position]
+        self._position += 1
+        return text
