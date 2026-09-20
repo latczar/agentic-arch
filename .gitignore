@@ -13,5 +13,8 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
-# Note: backend/recordings/ is deliberately NOT ignored. Those are saved model
+# Ad-hoc run recordings. The named case folders beside it are committed.
+backend/recordings/_latest/
+
+# Note: the curated cases in backend/recordings/ are deliberately NOT ignored. Those are saved model
 # responses so the project can be run with `--replay` and no API key at all.

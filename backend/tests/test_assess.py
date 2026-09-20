@@ -3,6 +3,7 @@
 import json
 
 from app.assess import assess_process
+from app.schemas.assessment import ControlKind
 from app.schemas.process import Edge, ProcessGraph, Step, StepKind, Trigger, TriggerKind
 from tests.test_extract import ScriptedLLM
 
@@ -126,3 +127,29 @@ def test_it_stops_early_when_the_same_fault_comes_back():
     assert not result.ok
     assert result.plan is None
     assert len(result.attempts) == 2
+
+
+def test_a_missing_guard_is_filled_in_rather_than_rejected():
+    """A risky step with no control gets a conservative one, not a failed run."""
+
+    plan = plan_dict()
+    plan["assessments"][1]["controls"] = []
+    llm = ScriptedLLM([json.dumps(plan)])
+    result = assess_process(graph(), llm)
+
+    assert result.ok
+    assert len(result.attempts) == 1
+
+    pay = result.plan.for_step("pay_invoice")
+    assert len(pay.controls) == 1
+    assert pay.controls[0].kind is ControlKind.HUMAN_APPROVAL
+    assert "Added automatically" in pay.controls[0].reason
+
+
+def test_a_control_the_model_chose_is_left_alone():
+    llm = ScriptedLLM([json.dumps(plan_dict())])
+    result = assess_process(graph(), llm)
+
+    pay = result.plan.for_step("pay_invoice")
+    assert pay.controls[0].kind is ControlKind.THRESHOLD_APPROVAL
+    assert "Added automatically" not in pay.controls[0].reason

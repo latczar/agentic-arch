@@ -21,7 +21,22 @@ from pathlib import Path
 
 from app.llm.base import LLMError, StructuredLLM
 
-DEFAULT_DIR = Path(__file__).resolve().parents[2] / "recordings"
+RECORDINGS = Path(__file__).resolve().parents[2] / "recordings"
+
+# Ad-hoc runs land here and are gitignored. The named folders beside it are
+# curated demo cases, kept in the repo so the project runs without a key.
+SCRATCH_DIR = RECORDINGS / "_latest"
+DEFAULT_CASE = "invoice-with-approval"
+
+
+def available_cases() -> list[str]:
+    """Names of the curated demo cases in the repository."""
+
+    if not RECORDINGS.exists():
+        return []
+    return sorted(
+        d.name for d in RECORDINGS.iterdir() if d.is_dir() and not d.name.startswith("_")
+    )
 
 
 class RecordingLLM:
@@ -30,7 +45,7 @@ class RecordingLLM:
     def __init__(self, inner: StructuredLLM, directory: Path | None = None) -> None:
         self.inner = inner
         self.name = f"recording({inner.name})"
-        self.directory = directory or DEFAULT_DIR
+        self.directory = directory or SCRATCH_DIR
         self.directory.mkdir(parents=True, exist_ok=True)
 
     def generate_json(self, *, system: str, prompt: str, schema: dict) -> str:
@@ -61,16 +76,18 @@ class ReplayLLM:
     answer. In order, and loudly when it runs out, is easier to trust.
     """
 
-    def __init__(self, directory: Path | None = None) -> None:
-        self.directory = directory or DEFAULT_DIR
-        self.name = "replay"
+    def __init__(self, case: str | None = None, directory: Path | None = None) -> None:
+        self.case = case or DEFAULT_CASE
+        self.directory = directory or (RECORDINGS / self.case)
+        self.name = f"replay:{self.case}"
         self._responses = self._load()
         self._position = 0
 
     def _load(self) -> list[str]:
         if not self.directory.exists():
+            known = ", ".join(available_cases()) or "none"
             raise LLMError(
-                f"No recordings in {self.directory}. Run once against a real model first."
+                f"No recorded case called '{self.case}'. Available: {known}."
             )
         responses = []
         for path in sorted(self.directory.glob("*.json")):

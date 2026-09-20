@@ -137,7 +137,8 @@ def assess_process(
         attempts.append(attempt)
 
         try:
-            plan = AutomationPlan.model_validate_json(_strip_fences(raw))
+            data = json.loads(_strip_fences(raw))
+            plan = AutomationPlan.model_validate(_fill_missing_controls(data))
         except (ValidationError, ValueError) as exc:
             attempt.errors = _readable_errors(exc)
         else:
@@ -156,6 +157,49 @@ def assess_process(
         prompt = _repair_prompt(graph, raw, attempt.errors)
 
     return AssessmentResult(plan=None, attempts=attempts, model=llm.name)
+
+
+AUTO_CONTROL_REASON = (
+    "Added automatically: this step was judged to need a guard, but none was "
+    "specified. Defaulting to asking a person, which is the safe assumption."
+)
+
+
+def _fill_missing_controls(data: dict) -> dict:
+    """Supply a conservative guard where one was called for but not given.
+
+    Models reliably notice that paying an invoice is risky, and then, on the
+    smaller ones, fail to attach the control that says so. Rejecting the whole
+    analysis over that throws away work that was otherwise correct, and after a
+    couple of rounds produces nothing at all.
+
+    So this fails safe rather than closed. A step that needed an approval and
+    gets one is right. A step that needed one and gets nothing is how money
+    leaves an account unattended. The inserted control says plainly that it was
+    added here rather than chosen by the model, because a guard rail nobody
+    knows about is not much of a guard rail.
+    """
+
+    if not isinstance(data, dict):
+        return data
+
+    for assessment in data.get("assessments") or []:
+        if not isinstance(assessment, dict):
+            continue
+        if assessment.get("verdict") != "automatable_with_control":
+            continue
+        if assessment.get("controls"):
+            continue
+
+        assessment["controls"] = [
+            {
+                "kind": "human_approval",
+                "reason": AUTO_CONTROL_REASON,
+                "addresses": list(assessment.get("risks") or []),
+            }
+        ]
+
+    return data
 
 
 def _process_summary(graph: ProcessGraph) -> str:

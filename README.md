@@ -3,7 +3,7 @@
 **Describe repetitive work in plain English. Get back a validated automation architecture.**
 
 You tell it what you do by hand. It works out the steps, judges which ones a computer
-could take over, and — the part that matters — flags where a human has to stay in the
+could take over, and, the part that matters, flags where a human has to stay in the
 loop and why.
 
 ---
@@ -97,6 +97,56 @@ Runs on its own: 6   Needs a guard: 0   Stays with you: 1   Unclear: 0
 Start with: check_emails
 ```
 
+### And when nothing stops for a human
+
+The interesting case. Same tool, a process with no approval step in it:
+
+```
+$ python scripts/analyse.py "Every Friday I go through the supplier invoices
+  sitting in our shared inbox. I read the amount off each one, pay it straight
+  from our business account through the banking portal, mark it as paid in the
+  spreadsheet, and then delete the email to keep the inbox tidy."
+
+FRIDAY SUPPLIER INVOICE PAYMENT
+
+  ... process map omitted ...
+
+  Worth asking before building anything:
+    - Do invoices need any manager approval before they are paid?
+      why: If approval is required, an approval step needs to be added before payment.
+      e.g. No, I pay them straight away / Yes, approval is needed for amounts over
+           a certain limit / Yes, all invoices need approval
+
+Step 2 of 2: judging what can be automated
+  attempt 1: accepted
+
+You can automate the reading, spreadsheet logging, and tidying of invoices, but
+actual money transfers will still wait for your final click.
+
+[ auto  ]  open_inbox
+[ auto  ]  get_next_invoice
+[ auto  ]  read_amount
+
+[ guard ]  pay_invoice
+            It can set up the payment for you, but actual money leaving your bank
+            account should never happen completely unattended.
+            risks: moves_money, irreversible
+            -> human_approval
+               Added automatically: this step was judged to need a guard, but none
+               was specified. Defaulting to asking a person, which is the safe
+               assumption.
+
+[ auto  ]  mark_as_paid
+[ auto  ]  delete_email
+
+Runs on its own: 5   Needs a guard: 1   Stays with you: 0   Unclear: 0
+Start with: pay_invoice
+```
+
+Nobody asked it to be careful about payments. It worked out on its own that money
+leaving an account is different from updating a spreadsheet, and it noticed that the
+description never mentioned an approval step, so it asked.
+
 ---
 
 ## How it works
@@ -134,7 +184,7 @@ in [`process.py`](backend/app/schemas/process.py) rather than requested in a pro
 
 **A house rule on risk.**
 Any step that moves money, cannot be undone, or carries legal weight can never be
-marked fully automatic — regardless of how confident the model was. See
+marked fully automatic, regardless of how confident the model was. See
 `NEVER_FULLY_AUTOMATIC` in [`assessment.py`](backend/app/schemas/assessment.py).
 Guard rails belong in code, not in prompt text.
 
@@ -145,8 +195,15 @@ fixes it, breaks another, and oscillates.
 
 **Repair prompts that say how to fix it.**
 An error message reading "that is invalid" produces the same invalid answer again.
-Every message names the valid ways out. This was learned the hard way — see the
+Every message names the valid ways out. This was learned the hard way, see the
 commit history.
+
+**Failing safe rather than closed.**
+Smaller models regularly flag a step as needing a guard and then forget to attach
+one. Rejecting the whole analysis over that throws away work that was otherwise
+correct. Instead a conservative control is inserted, labelled plainly as having been
+added automatically. A step that needed an approval and gets one is right. A step
+that needed one and gets nothing is how money leaves an account unattended.
 
 **A guard against loops that are not converging.**
 If the same complaint comes back twice running, it stops rather than spending more
@@ -157,18 +214,21 @@ Nothing outside [`llm/gemini.py`](backend/app/llm/gemini.py) knows which model
 provider is in use. Swapping it is one file.
 
 **Record and replay.**
-Every real call is saved to `backend/recordings/`. `--replay` plays them back with no
-network and no API key, which is also how the tests run.
+Every real call is saved. Two curated cases live in `backend/recordings/`, so
+`--replay` reproduces either example above with no network and no API key. The tests
+use the same idea with a scripted stand-in.
 
 ## Try it
 
-No API key needed — the saved recordings are in the repo:
+No API key needed. Two recorded cases ship with the repo:
 
 ```bash
 cd backend
 python -m venv .venv
-.venv/Scripts/python -m pip install -r requirements.txt   # or: pip install -e .
+.venv/Scripts/python -m pip install -r requirements.txt
+
 .venv/Scripts/python scripts/analyse.py --replay
+.venv/Scripts/python scripts/analyse.py --replay payment-no-approval
 ```
 
 To run it against your own description you need a free
@@ -187,7 +247,7 @@ cd backend
 .venv/Scripts/python -m pytest
 ```
 
-38 tests, none of which call an API. The model is substituted with a scripted
+40 tests, none of which call an API. The model is substituted with a scripted
 stand-in that returns deliberately broken output, so the repair loop can be tested
 precisely and for free.
 
@@ -203,4 +263,4 @@ figures are in pounds, because that is who it is for.
 
 ## Licence
 
-MIT — see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).

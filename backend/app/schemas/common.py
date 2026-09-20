@@ -80,7 +80,7 @@ class DataItem(Base):
     contains_personal_data: bool = Field(
         default=False,
         description=(
-            "True if this identifies or relates to a living person — names, contact "
+            "True if this identifies or relates to a living person: names, contact "
             "details, addresses, anything tied to an individual. Drives the controls layer."
         ),
     )

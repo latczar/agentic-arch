@@ -20,7 +20,12 @@ from app.assess import AssessmentResult, assess_process  # noqa: E402
 from app.extract import ExtractionResult, extract_process  # noqa: E402
 from app.llm.base import LLMError  # noqa: E402
 from app.llm.gemini import GeminiClient  # noqa: E402
-from app.llm.record import RecordingLLM, ReplayLLM  # noqa: E402
+from app.llm.record import (  # noqa: E402
+    DEFAULT_CASE,
+    RecordingLLM,
+    ReplayLLM,
+    available_cases,
+)
 from app.schemas.assessment import AutomationPlan, Verdict  # noqa: E402
 from app.schemas.process import ProcessGraph, StepKind  # noqa: E402
 
@@ -48,8 +53,13 @@ def main() -> int:
     parser.add_argument("--model", help="Override the Gemini model.")
     parser.add_argument(
         "--replay",
-        action="store_true",
-        help="Use saved recordings instead of calling the API. Costs no quota.",
+        nargs="?",
+        const=DEFAULT_CASE,
+        metavar="CASE",
+        help=(
+            "Replay a saved case instead of calling the API. No key, no quota. "
+            f"Cases: {', '.join(available_cases()) or 'none recorded'}."
+        ),
     )
     args = parser.parse_args()
 
@@ -63,7 +73,7 @@ def main() -> int:
 
     try:
         if args.replay:
-            llm = ReplayLLM()
+            llm = ReplayLLM(args.replay)
         else:
             # Every real call is recorded, so the next run can be free.
             llm = RecordingLLM(
