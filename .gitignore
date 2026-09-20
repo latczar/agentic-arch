@@ -5,7 +5,7 @@ __pycache__/
 *.egg-info/
 .pytest_cache/
 
-# Secrets — never commit an API key
+# Secrets. Never commit an API key.
 .env
 *.key
 

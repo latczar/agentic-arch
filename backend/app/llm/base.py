@@ -2,8 +2,8 @@
 
 The whole interface is one method that takes a prompt and a schema and returns
 raw JSON text. That is all we need, and keeping it that small is the point: the
-provider stops being a decision we are married to. Swapping Gemini for Claude,
-or adding a second provider to compare them, is one new file implementing this.
+provider stops being a decision we are married to. Swapping Gemini for another
+provider, or adding a second to compare them, is one new file implementing this.
 
 Providers change their SDKs often -- the Gemini one changed shape between our
 training assumptions and today. A seam this narrow means that churn touches one
