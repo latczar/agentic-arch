@@ -1,4 +1,11 @@
-import type { AnalyseResponse, AutomationPlan, Example, ProcessGraph } from "./types";
+import type {
+  AnalyseResponse,
+  AutomationPlan,
+  EffortInput,
+  EffortSummary,
+  Example,
+  ProcessGraph,
+} from "./types";
 
 export async function fetchExamples(): Promise<Example[]> {
   const response = await fetch("/api/examples");
@@ -53,4 +60,17 @@ export function download(blob: Blob, filename: string): void {
   link.click();
   link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
+export async function calculateEffort(
+  plan: AutomationPlan,
+  effort: EffortInput,
+): Promise<EffortSummary> {
+  const response = await fetch("/api/effort", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ plan, effort }),
+  });
+  if (!response.ok) throw new Error(`Could not work that out (${response.status}).`);
+  return response.json();
 }

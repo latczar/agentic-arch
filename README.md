@@ -181,6 +181,28 @@ npm run dev
 Then open http://localhost:5173. The two examples on the page are recorded, so they
 work with no API key.
 
+## How much time it takes
+
+![The time panel, showing 39.1 hours a month with 36.2 of them automatable](docs/effort.png)
+
+You tell it how often you do the process and roughly how long each step takes. It
+multiplies.
+
+That sounds trivial and it is the point. A model will happily report that a process
+takes 11.5 hours a month and is 71% automatable, and those figures are invented.
+Anyone who stops to ask where they came from discounts the whole output, including
+the parts that were sound. The two facts here come from the person doing the work,
+so the arithmetic is theirs.
+
+It also earns its place as interface. Typing "I do this twenty times a week and it
+takes six minutes" tends to be the moment someone realises they have a problem worth
+solving.
+
+Steps needing a guard count as still needing you, since an approval is still your
+attention. Approving takes less time than doing, so the real saving sits above the
+figure shown rather than below it. Understating is the honest direction to be wrong
+in.
+
 ## Exporting it
 
 The **Export to n8n** button produces a workflow file that imports cleanly. It is a
@@ -315,17 +337,17 @@ cd backend
 .venv/Scripts/python -m pytest
 ```
 
-65 tests, none of which call an API. The model is substituted with a scripted
+80 tests, none of which call an API. The model is substituted with a scripted
 stand-in that returns deliberately broken output, so the repair loop can be tested
 precisely and for free.
 
 ## Status
 
 Working: the two-stage pipeline, validation, repair, record/replay, a web front end
-with the process rendered as a diagram, and export to n8n.
+with the process rendered as a diagram, the time arithmetic, and export to n8n.
 
-Next: the time-saved arithmetic, taking frequency and duration from the person rather
-than inventing them, then a shareable link.
+Next: a shareable link, so the output can be sent to whoever actually signs things
+off, and an eval set so prompt changes can be measured rather than guessed at.
 
 Built with Python, Pydantic and Gemini on the back end, React and React Flow on the
 front. British English throughout, and the example

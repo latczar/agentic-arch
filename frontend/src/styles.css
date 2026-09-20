@@ -520,3 +520,132 @@ button:disabled {
   border-color: var(--accent);
   color: var(--accent);
 }
+
+/* Time arithmetic --------------------------------------------------------- */
+
+.effort {
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+
+.effort__pitch {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+  max-width: 44ch;
+}
+
+.effort h3 {
+  margin: 0 0 12px;
+  font-size: 0.95rem;
+}
+
+.effort__frequency {
+  margin: 0 0 14px;
+  font-size: 0.9rem;
+}
+
+.effort input[type="number"],
+.effort select {
+  font: inherit;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: inherit;
+}
+
+.effort input[type="number"] {
+  width: 4.5em;
+}
+
+.effort__steps {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  margin-bottom: 16px;
+}
+
+.effort__steps th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding-bottom: 6px;
+}
+
+.effort__steps th:last-child,
+.effort__steps td:last-child {
+  text-align: right;
+  width: 7em;
+}
+
+.effort__steps td {
+  padding: 4px 0;
+  border-top: 1px solid var(--border);
+}
+
+.effort__result {
+  padding: 14px;
+  border-radius: 8px;
+  background: var(--auto-bg);
+}
+
+.effort__headline {
+  margin: 0 0 12px;
+  font-size: 0.95rem;
+  color: var(--text);
+}
+
+.effort__bar {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.effort__bar-fill {
+  display: block;
+  height: 100%;
+  background: var(--auto);
+}
+
+.effort__percent {
+  margin: 6px 0 12px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.effort__breakdown {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  font-size: 0.85rem;
+}
+
+.effort__breakdown li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 3px 0;
+  color: var(--muted);
+}
+
+.effort__breakdown li[data-saved="true"] {
+  color: var(--auto);
+}
+
+.effort__caveat {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.effort__error {
+  color: var(--guard);
+  font-size: 0.85rem;
+}

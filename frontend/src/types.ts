@@ -118,3 +118,29 @@ export interface Example {
   description: string;
   replayable: boolean;
 }
+
+export type Period = "day" | "working_day" | "week" | "month";
+
+export interface EffortInput {
+  times_per_period: number;
+  period: Period;
+  minutes_per_step: Record<string, number>;
+}
+
+export interface StepEffort {
+  step_id: string;
+  verdict: Verdict;
+  minutes_each_time: number;
+  hours_per_month: number;
+  could_run_without_you: boolean;
+}
+
+export interface EffortSummary {
+  runs_per_month: number;
+  hours_per_month: number;
+  hours_that_could_run_without_you: number;
+  hours_that_still_need_you: number;
+  percentage_automatable: number;
+  steps: StepEffort[];
+  caveat: string;
+}

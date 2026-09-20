@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { analyse, download, exportN8n, fetchExamples } from "./api";
 import { Diagram } from "./components/Diagram";
+import { Effort } from "./components/Effort";
 import { Verdicts } from "./components/Verdicts";
 import type { AnalyseResponse, Example } from "./types";
 
@@ -175,6 +176,8 @@ export default function App() {
                 The process was mapped, but the judgement stage did not complete.
               </p>
             )}
+
+            {result.plan && <Effort graph={result.graph} plan={result.plan} />}
 
             {result.graph.questions.length > 0 && (
               <section className="questions">

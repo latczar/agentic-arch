@@ -21,6 +21,7 @@ from app.llm.base import LLMError, StructuredLLM
 from app.llm.gemini import GeminiClient
 from app.llm.record import RecordingLLM, ReplayLLM, available_cases
 from app.schemas.assessment import AutomationPlan
+from app.schemas.effort import EffortInput, EffortSummary, summarise_effort
 from app.schemas.process import ProcessGraph
 
 EXAMPLES = [
@@ -174,3 +175,20 @@ def export_n8n(request: ExportRequest) -> dict:
     """
 
     return to_n8n(request.graph, request.plan)
+
+
+class EffortRequest(BaseModel):
+    plan: AutomationPlan
+    effort: EffortInput
+
+
+@app.post("/api/effort", response_model=EffortSummary)
+def effort(request: EffortRequest) -> EffortSummary:
+    """Work out where the time goes, from figures the person supplied.
+
+    Deliberately a separate call from the analysis. The verdicts come from a
+    model; these numbers do not, and keeping them apart makes that obvious in
+    the code as well as in the interface.
+    """
+
+    return summarise_effort(request.effort, request.plan)

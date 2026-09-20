@@ -102,3 +102,46 @@ def test_exporting_without_a_plan_still_works():
     ).json()
 
     assert workflow["nodes"]
+
+
+def analysed(case: str = "invoice-with-approval") -> dict:
+    return client.post("/api/analyse", json={"description": INVOICE, "case": case}).json()
+
+
+def test_the_effort_endpoint_multiplies_the_users_own_numbers():
+    analysis = analysed()
+    steps = [s["id"] for s in analysis["graph"]["steps"]]
+
+    summary = client.post(
+        "/api/effort",
+        json={
+            "plan": analysis["plan"],
+            "effort": {
+                "times_per_period": 10,
+                "period": "week",
+                "minutes_per_step": {step: 3 for step in steps},
+            },
+        },
+    ).json()
+
+    # 10 a week is about 43.5 a month; 3 minutes on each of N steps.
+    expected = 43.5 * 3 * len(steps) / 60
+    assert abs(summary["hours_per_month"] - expected) < 0.5
+    assert summary["percentage_automatable"] > 0
+    assert summary["caveat"]
+
+
+def test_effort_rejects_an_impossible_duration():
+    analysis = analysed()
+    response = client.post(
+        "/api/effort",
+        json={
+            "plan": analysis["plan"],
+            "effort": {
+                "times_per_period": 1,
+                "period": "week",
+                "minutes_per_step": {"check_emails": 9999},
+            },
+        },
+    )
+    assert response.status_code == 422
