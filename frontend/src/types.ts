@@ -1,0 +1,120 @@
+// Mirrors the Pydantic models in backend/app/schemas. Kept by hand rather than
+// generated: the surface is small, and a generator is another moving part to
+// explain. If it grows, generate it from the OpenAPI schema FastAPI already
+// publishes at /openapi.json.
+
+export type Verdict =
+  | "fully_automatable"
+  | "automatable_with_control"
+  | "human_required"
+  | "needs_more_info";
+
+export type StepKind =
+  | "read"
+  | "extract"
+  | "transform"
+  | "decision"
+  | "write"
+  | "notify"
+  | "judgement"
+  | "wait";
+
+export interface Step {
+  id: string;
+  name: string;
+  description: string;
+  kind: StepKind;
+  system_id: string | null;
+  iterates_over: string | null;
+  assumption: string | null;
+}
+
+export interface Edge {
+  from_step: string;
+  to_step: string;
+  condition: string | null;
+}
+
+export interface System {
+  id: string;
+  name: string;
+  category: string;
+}
+
+export interface Question {
+  id: string;
+  question: string;
+  why_it_matters: string;
+  suggested_answers: string[];
+}
+
+export interface ProcessGraph {
+  title: string;
+  summary: string;
+  trigger: { kind: string; description: string; first_step_id: string };
+  systems: System[];
+  steps: Step[];
+  edges: Edge[];
+  questions: Question[];
+}
+
+export interface Threshold {
+  field: string;
+  operator: string;
+  value: string | null;
+  currency: string | null;
+}
+
+export interface Control {
+  kind: string;
+  reason: string;
+  addresses: string[];
+  threshold: Threshold | null;
+  who_approves: string | null;
+}
+
+export interface Blocker {
+  kind: string;
+  detail: string;
+  workaround: string | null;
+}
+
+export interface StepAssessment {
+  step_id: string;
+  verdict: Verdict;
+  rationale: string;
+  confidence: "high" | "medium" | "low";
+  risks: string[];
+  controls: Control[];
+  blockers: Blocker[];
+}
+
+export interface AutomationPlan {
+  process_title: string;
+  headline: string;
+  biggest_win: string | null;
+  assessments: StepAssessment[];
+}
+
+export interface Attempt {
+  number: number;
+  ok: boolean;
+  errors: string[];
+}
+
+export interface AnalyseResponse {
+  ok: boolean;
+  model: string;
+  graph: ProcessGraph | null;
+  plan: AutomationPlan | null;
+  extraction_attempts: Attempt[];
+  assessment_attempts: Attempt[];
+  error: string | null;
+}
+
+export interface Example {
+  id: string;
+  label: string;
+  description: string;
+  replayable: boolean;
+}

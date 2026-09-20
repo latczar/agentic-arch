@@ -158,6 +158,27 @@ code, which is why it says so.
 
 ---
 
+## The web version
+
+The same pipeline behind a page: type a description, get the process as a diagram
+with each step colour coded, and a panel explaining every verdict. Steps needing a
+guard are listed first, because a list that opens with six green rows buries the one
+thing the reader has to decide about.
+
+```bash
+# API
+cd backend
+.venv/Scripts/python -m uvicorn app.api:app --port 8000
+
+# Front end, in a second terminal
+cd frontend
+npm install
+npm run dev
+```
+
+Then open http://localhost:5173. The two examples on the page are recorded, so they
+work with no API key.
+
 ## How it works
 
 ```
@@ -265,18 +286,19 @@ cd backend
 .venv/Scripts/python -m pytest
 ```
 
-48 tests, none of which call an API. The model is substituted with a scripted
+54 tests, none of which call an API. The model is substituted with a scripted
 stand-in that returns deliberately broken output, so the repair loop can be tested
 precisely and for free.
 
 ## Status
 
-Working: the two-stage pipeline, validation, repair, record/replay.
+Working: the two-stage pipeline, validation, repair, record/replay, and a web front
+end with the process rendered as a diagram.
 
-Next: a web front end with the process rendered as a diagram, then export to n8n,
-then the time-saved arithmetic.
+Next: export to n8n, then the time-saved arithmetic, then a shareable link.
 
-Built with Python, Pydantic and Gemini. British English throughout, and the example
+Built with Python, Pydantic and Gemini on the back end, React and React Flow on the
+front. British English throughout, and the example
 figures are in pounds, because that is who it is for.
 
 ## Licence
