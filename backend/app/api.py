@@ -10,7 +10,9 @@ the tool does, and burying it would be a waste.
 
 from __future__ import annotations
 
-from fastapi import FastAPI
+from datetime import datetime
+
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -22,6 +24,7 @@ from app.llm.gemini import GeminiClient
 from app.llm.record import RecordingLLM, ReplayLLM, available_cases
 from app.schemas.assessment import AutomationPlan
 from app.schemas.effort import EffortInput, EffortSummary, summarise_effort
+from app.share import ShareStore, ShareTooLarge
 from app.schemas.process import ProcessGraph
 
 EXAMPLES = [
@@ -47,6 +50,8 @@ EXAMPLES = [
         ),
     },
 ]
+
+store = ShareStore()
 
 app = FastAPI(
     title="AI Automation Architect",
@@ -192,3 +197,62 @@ def effort(request: EffortRequest) -> EffortSummary:
     """
 
     return summarise_effort(request.effort, request.plan)
+
+
+class ShareRequest(BaseModel):
+    graph: ProcessGraph
+    plan: AutomationPlan | None = None
+    effort: EffortInput | None = None
+
+
+class ShareCreated(BaseModel):
+    id: str
+    expires_at: datetime
+
+
+class SharedAnalysis(BaseModel):
+    id: str
+    title: str
+    created_at: datetime
+    expires_at: datetime
+    graph: ProcessGraph
+    plan: AutomationPlan | None = None
+    effort: EffortInput | None = None
+
+
+@app.post("/api/share", response_model=ShareCreated)
+def create_share(request: ShareRequest) -> ShareCreated:
+    """Store an analysis so it can be sent to somebody else.
+
+    The link is unlisted rather than private: anyone holding it can read the
+    analysis. That is the right trade for "send this to my manager", but it is
+    why ids are unguessable and why shares expire.
+    """
+
+    try:
+        record = store.create(
+            payload=request.model_dump(mode="json"),
+            title=request.graph.title,
+        )
+    except ShareTooLarge as exc:
+        raise HTTPException(status_code=413, detail=str(exc)) from exc
+
+    return ShareCreated(id=record.id, expires_at=record.expires_at)
+
+
+@app.get("/api/share/{share_id}", response_model=SharedAnalysis)
+def read_share(share_id: str) -> SharedAnalysis:
+    record = store.get(share_id)
+    if record is None:
+        raise HTTPException(
+            status_code=404,
+            detail="That link has expired or never existed. Shares last 30 days.",
+        )
+
+    return SharedAnalysis(
+        id=record.id,
+        title=record.title,
+        created_at=record.created_at,
+        expires_at=record.expires_at,
+        **record.payload,
+    )

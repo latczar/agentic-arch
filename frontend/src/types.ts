@@ -144,3 +144,18 @@ export interface EffortSummary {
   steps: StepEffort[];
   caveat: string;
 }
+
+export interface ShareCreated {
+  id: string;
+  expires_at: string;
+}
+
+export interface SharedAnalysis {
+  id: string;
+  title: string;
+  created_at: string;
+  expires_at: string;
+  graph: ProcessGraph;
+  plan: AutomationPlan | null;
+  effort: EffortInput | null;
+}

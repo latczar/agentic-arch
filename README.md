@@ -203,6 +203,33 @@ attention. Approving takes less time than doing, so the real saving sits above t
 figure shown rather than below it. Understating is the honest direction to be wrong
 in.
 
+## Sharing it
+
+The **Share** button stores the analysis and gives you a link. Whoever you send it
+to sees the process, the verdicts and your time figures, without needing the tool or
+a key.
+
+That matters more than it sounds for something meant to start conversations. The
+person who decides whether to automate a process is usually not the person who does
+it, and "have a look at this" beats a screenshot.
+
+Three things the storage has to get right, because a shared analysis describes how
+somebody's business actually runs:
+
+- **Identifiers are unguessable.** Sequential ids would let anyone walk the table and
+  read every process ever analysed.
+- **Shares expire after 30 days.** An unlisted link that lives forever is a slow
+  leak, and nobody goes back to tidy up. Expired rows are swept on the way past, so
+  nothing needs scheduling.
+- **Payloads are capped.** A public write endpoint with no limit is somebody else's
+  free storage.
+
+The interface says plainly that the link is readable by anyone holding it, and warns
+against sharing one containing customer names. Unlisted is not the same as private.
+
+SQLite, because this is a handful of small rows and a database server would cost more
+than it is worth.
+
 ## Exporting it
 
 The **Export to n8n** button produces a workflow file that imports cleanly. It is a
@@ -337,17 +364,20 @@ cd backend
 .venv/Scripts/python -m pytest
 ```
 
-80 tests, none of which call an API. The model is substituted with a scripted
+92 tests, none of which call an API. The model is substituted with a scripted
 stand-in that returns deliberately broken output, so the repair loop can be tested
 precisely and for free.
 
 ## Status
 
 Working: the two-stage pipeline, validation, repair, record/replay, a web front end
-with the process rendered as a diagram, the time arithmetic, and export to n8n.
+with the process rendered as a diagram, the time arithmetic, shareable links, and
+export to n8n.
 
-Next: a shareable link, so the output can be sent to whoever actually signs things
-off, and an eval set so prompt changes can be measured rather than guessed at.
+Next: an eval set, so a prompt change can be measured rather than guessed at.
+
+One deployment note: shared links are client-side routes, so static hosting needs a
+rewrite sending `/s/*` to `index.html`. The Vite dev server does this already.
 
 Built with Python, Pydantic and Gemini on the back end, React and React Flow on the
 front. British English throughout, and the example

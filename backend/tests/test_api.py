@@ -145,3 +145,45 @@ def test_effort_rejects_an_impossible_duration():
         },
     )
     assert response.status_code == 422
+
+
+def test_an_analysis_can_be_shared_and_read_back():
+    analysis = analysed()
+
+    created = client.post(
+        "/api/share",
+        json={"graph": analysis["graph"], "plan": analysis["plan"]},
+    ).json()
+    assert created["id"]
+
+    shared = client.get(f"/api/share/{created['id']}").json()
+    assert shared["title"] == analysis["graph"]["title"]
+    assert shared["graph"]["steps"] == analysis["graph"]["steps"]
+    assert shared["plan"]["assessments"]
+
+
+def test_a_share_can_carry_the_time_figures_too():
+    analysis = analysed()
+    steps = [s["id"] for s in analysis["graph"]["steps"]]
+
+    created = client.post(
+        "/api/share",
+        json={
+            "graph": analysis["graph"],
+            "plan": analysis["plan"],
+            "effort": {
+                "times_per_period": 4,
+                "period": "week",
+                "minutes_per_step": {step: 5 for step in steps},
+            },
+        },
+    ).json()
+
+    shared = client.get(f"/api/share/{created['id']}").json()
+    assert shared["effort"]["times_per_period"] == 4
+
+
+def test_an_unknown_share_says_so_rather_than_failing_oddly():
+    response = client.get("/api/share/nope")
+    assert response.status_code == 404
+    assert "expired" in response.json()["detail"]

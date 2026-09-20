@@ -5,6 +5,8 @@ import type {
   EffortSummary,
   Example,
   ProcessGraph,
+  ShareCreated,
+  SharedAnalysis,
 } from "./types";
 
 export async function fetchExamples(): Promise<Example[]> {
@@ -73,4 +75,36 @@ export async function calculateEffort(
   });
   if (!response.ok) throw new Error(`Could not work that out (${response.status}).`);
   return response.json();
+}
+
+export async function createShare(
+  graph: ProcessGraph,
+  plan: AutomationPlan | null,
+  effort: EffortInput | null,
+): Promise<ShareCreated> {
+  const response = await fetch("/api/share", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ graph, plan, effort }),
+  });
+  if (response.status === 413) {
+    throw new Error("That analysis is too large to share.");
+  }
+  if (!response.ok) throw new Error(`Could not create the link (${response.status}).`);
+  return response.json();
+}
+
+export async function fetchShare(id: string): Promise<SharedAnalysis> {
+  const response = await fetch(`/api/share/${encodeURIComponent(id)}`);
+  if (response.status === 404) {
+    throw new Error("That link has expired or never existed. Shares last 30 days.");
+  }
+  if (!response.ok) throw new Error(`Could not open that link (${response.status}).`);
+  return response.json();
+}
+
+/** The share id if we are on a /s/<id> URL, otherwise null. */
+export function shareIdFromUrl(): string | null {
+  const match = window.location.pathname.match(/^\/s\/([A-Za-z0-9_-]+)\/?$/);
+  return match ? match[1] : null;
 }

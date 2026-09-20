@@ -28,14 +28,20 @@ function duration(hours: number): string {
 interface Props {
   graph: ProcessGraph;
   plan: AutomationPlan;
+  /** Figures from a shared link, if this is somebody else's analysis. */
+  initial?: EffortInput | null;
+  /** Reported upward so the figures can travel with a shared link. */
+  onChange?: (effort: EffortInput | null) => void;
 }
 
-export function Effort({ graph, plan }: Props) {
-  const [open, setOpen] = useState(false);
-  const [times, setTimes] = useState(5);
-  const [period, setPeriod] = useState<Period>("week");
+export function Effort({ graph, plan, initial, onChange }: Props) {
+  const [open, setOpen] = useState(Boolean(initial));
+  const [times, setTimes] = useState(initial?.times_per_period ?? 5);
+  const [period, setPeriod] = useState<Period>(initial?.period ?? "week");
   const [minutes, setMinutes] = useState<Record<string, number>>(() =>
-    Object.fromEntries(graph.steps.map((step) => [step.id, DEFAULT_MINUTES])),
+    initial
+      ? { ...initial.minutes_per_step }
+      : Object.fromEntries(graph.steps.map((step) => [step.id, DEFAULT_MINUTES])),
   );
   const [summary, setSummary] = useState<EffortSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -61,6 +67,10 @@ export function Effort({ graph, plan }: Props) {
 
     return () => clearTimeout(timer);
   }, [open, plan, input, times]);
+
+  useEffect(() => {
+    onChange?.(open ? input : null);
+  }, [open, input, onChange]);
 
   if (!open) {
     return (
