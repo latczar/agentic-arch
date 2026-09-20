@@ -137,15 +137,24 @@ actual money transfers will still wait for your final click.
                assumption.
 
 [ auto  ]  mark_as_paid
-[ auto  ]  delete_email
 
-Runs on its own: 5   Needs a guard: 1   Stays with you: 0   Unclear: 0
+[ guard ]  delete_email
+            Once the payment is done and logged, a computer can move or delete the
+            email to keep things tidy. Flagged automatically from what this step
+            does, rather than by judgement.
+            risks: irreversible
+            -> human_approval
+
+Runs on its own: 4   Needs a guard: 2   Stays with you: 0   Unclear: 0
 Start with: pay_invoice
 ```
 
-Nobody asked it to be careful about payments. It worked out on its own that money
-leaving an account is different from updating a spreadsheet, and it noticed that the
+Two different mechanisms are visible there. The model worked out by itself that money
+leaving an account is different from updating a spreadsheet, and noticed the
 description never mentioned an approval step, so it asked.
+
+It did not notice that deleting an email cannot be undone. That one was caught in
+code, which is why it says so.
 
 ---
 
@@ -198,6 +207,15 @@ An error message reading "that is invalid" produces the same invalid answer agai
 Every message names the valid ways out. This was learned the hard way, see the
 commit history.
 
+**Risk detection that does not depend on the model noticing.**
+The house rule above only fires once a risk is flagged, and that was left entirely
+to judgement. It marked "delete the email" as safe to run unattended. Obvious cases
+are now caught by looking at what the step says it does, before the model's verdict
+is considered. Deliberately crude word matching, because a safety net needs to be
+predictable and explainable more than it needs to be clever. It is also careful
+about the difference between doing a thing and recording that it happened: "mark as
+paid" writes a spreadsheet row, it does not touch a bank account.
+
 **Failing safe rather than closed.**
 Smaller models regularly flag a step as needing a guard and then forget to attach
 one. Rejecting the whole analysis over that throws away work that was otherwise
@@ -247,7 +265,7 @@ cd backend
 .venv/Scripts/python -m pytest
 ```
 
-40 tests, none of which call an API. The model is substituted with a scripted
+48 tests, none of which call an API. The model is substituted with a scripted
 stand-in that returns deliberately broken output, so the repair loop can be tested
 precisely and for free.
 

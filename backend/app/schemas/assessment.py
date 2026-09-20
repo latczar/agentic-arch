@@ -57,6 +57,105 @@ NEVER_FULLY_AUTOMATIC = frozenset(
     {RiskFlag.MOVES_MONEY, RiskFlag.IRREVERSIBLE, RiskFlag.LEGAL_OR_COMPLIANCE}
 )
 
+# The rule above only helps if the risk was noticed in the first place, and that
+# was being left entirely to the model. It marked "delete the email" as safe to
+# run unattended, which it plainly is not.
+#
+# So the obvious cases are caught here instead, by looking at what the step says
+# it does. Deliberately crude word matching: a safety net needs to be predictable
+# and explainable more than it needs to be clever. "It flagged this because the
+# step says 'delete'" is something a person can audit, argue with and correct. A
+# model deciding case by case is none of those things.
+#
+# False positives are the acceptable direction of error here. Being asked to
+# confirm a deletion that was actually safe costs somebody a click. Not being
+# asked costs them the data.
+RISK_WORDS: dict[RiskFlag, frozenset[str]] = {
+    RiskFlag.IRREVERSIBLE: frozenset(
+        {
+            "delete", "deletes", "deleting", "deleted",
+            "remove", "removes", "removing", "removed",
+            "erase", "erases", "erasing", "erased",
+            "purge", "purges", "purging", "purged",
+            "wipe", "wipes", "wiping", "wiped",
+            "destroy", "destroys", "destroying", "destroyed",
+            "discard", "discards", "discarding", "discarded",
+            "overwrite", "overwrites", "overwriting", "overwritten",
+            "cancel", "cancels", "cancelling", "cancelled",
+            "revoke", "revokes", "revoking", "revoked",
+        }
+    ),
+    RiskFlag.MOVES_MONEY: frozenset(
+        {
+            "pay", "pays", "paying", "payment", "payments",
+            "transfer", "transfers", "transferring",
+            "refund", "refunds", "refunding",
+            "charge", "charges", "charging",
+            "remit", "remits", "remitting",
+            "reimburse", "reimburses", "reimbursing",
+            "withdraw", "withdraws", "withdrawing",
+        }
+    ),
+}
+
+# Recording that money moved is not moving money. "Mark as paid" writes a row in
+# a spreadsheet; it does not touch a bank account. Without this, half a finance
+# process lights up amber, and a warning on everything is a warning on nothing.
+RECORDING_VERBS = frozenset(
+    {"mark", "log", "record", "note", "update", "enter", "type", "tick",
+     "copy", "add", "append", "file", "save", "store", "track"}
+)
+
+# "Send an email" is only externally facing if it leaves the organisation, so
+# this one needs both halves to match. An internal Slack message is not the same
+# risk as a message to a client.
+SENDING_WORDS = frozenset(
+    {"send", "sends", "sending", "sent", "email", "emails", "emailing",
+     "emailed", "reply", "replies", "replying", "replied", "post", "posts",
+     "publish", "publishes", "publishing", "published", "text", "texts"}
+)
+OUTSIDE_WORDS = frozenset(
+    {"customer", "customers", "client", "clients", "supplier", "suppliers",
+     "vendor", "vendors", "applicant", "applicants", "landlord", "landlords",
+     "tenant", "tenants", "candidate", "candidates", "public", "buyer",
+     "buyers", "seller", "sellers", "guest", "guests"}
+)
+
+
+def mandatory_risks(name: str, description: str = "", kind: str | None = None) -> set[RiskFlag]:
+    """Risks the step carries by virtue of what it does, whatever the model said.
+
+    Some checks look at the whole text and some only at the leading verb, and the
+    difference matters. "Delete" anywhere means something is being destroyed. But
+    "paid" anywhere catches "mark as paid", which touches a spreadsheet and not a
+    bank account, so money and messaging are judged on what the step is actually
+    doing rather than on what it mentions.
+    """
+
+    def tokens(text: str) -> set[str]:
+        return {w.strip(".,;:!?()'\"").lower() for w in text.split()}
+
+    words = tokens(name) | tokens(description)
+    lead = next(iter(name.split()), "").strip(".,;:!?()'\"").lower()
+
+    found: set[RiskFlag] = set()
+
+    # Destroying something is destroying it wherever the word appears.
+    if words & RISK_WORDS[RiskFlag.IRREVERSIBLE]:
+        found.add(RiskFlag.IRREVERSIBLE)
+
+    # Moving money, but not merely writing down that it moved.
+    if words & RISK_WORDS[RiskFlag.MOVES_MONEY] and lead not in RECORDING_VERBS:
+        found.add(RiskFlag.MOVES_MONEY)
+
+    # Sending has to be the action, not something the step happens to mention.
+    # Reading an email from a supplier is not communicating with them.
+    sending = kind == "notify" or lead in SENDING_WORDS
+    if sending and words & OUTSIDE_WORDS:
+        found.add(RiskFlag.EXTERNAL_COMMS)
+
+    return found
+
 
 class ControlKind(StrEnum):
     """What we do about a risk."""

@@ -15,7 +15,12 @@ from pydantic import ValidationError
 
 from app.extract import _readable_errors, _strip_fences
 from app.llm.base import StructuredLLM
-from app.schemas.assessment import AutomationPlan, validate_plan
+from app.schemas.assessment import (
+    NEVER_FULLY_AUTOMATIC,
+    AutomationPlan,
+    mandatory_risks,
+    validate_plan,
+)
 from app.schemas.process import ProcessGraph
 
 SYSTEM_PROMPT = """\
@@ -138,7 +143,7 @@ def assess_process(
 
         try:
             data = json.loads(_strip_fences(raw))
-            plan = AutomationPlan.model_validate(_fill_missing_controls(data))
+            plan = AutomationPlan.model_validate(_normalise(data, graph))
         except (ValidationError, ValueError) as exc:
             attempt.errors = _readable_errors(exc)
         else:
@@ -163,21 +168,23 @@ AUTO_CONTROL_REASON = (
     "Added automatically: this step was judged to need a guard, but none was "
     "specified. Defaulting to asking a person, which is the safe assumption."
 )
+AUTO_RISK_NOTE = (
+    "Flagged automatically from what this step does, rather than by judgement."
+)
 
 
-def _fill_missing_controls(data: dict) -> dict:
-    """Supply a conservative guard where one was called for but not given.
+def _normalise(data: dict, graph: ProcessGraph) -> dict:
+    """Bring a raw plan into line with house policy before it is validated.
 
-    Models reliably notice that paying an invoice is risky, and then, on the
-    smaller ones, fail to attach the control that says so. Rejecting the whole
-    analysis over that throws away work that was otherwise correct, and after a
-    couple of rounds produces nothing at all.
+    Three passes, in this order, because each depends on the one before:
 
-    So this fails safe rather than closed. A step that needed an approval and
-    gets one is right. A step that needed one and gets nothing is how money
-    leaves an account unattended. The inserted control says plainly that it was
-    added here rather than chosen by the model, because a guard rail nobody
-    knows about is not much of a guard rail.
+      1. add risks the step carries by definition, whatever the model noticed
+      2. downgrade any verdict those risks now contradict
+      3. supply a guard for anything left needing one
+
+    All three correct the model rather than rejecting it. Rejecting throws away
+    work that was mostly right, and after a round or two produces nothing at all,
+    which is the worst outcome available: no analysis and no warning either.
     """
 
     if not isinstance(data, dict):
@@ -186,20 +193,70 @@ def _fill_missing_controls(data: dict) -> dict:
     for assessment in data.get("assessments") or []:
         if not isinstance(assessment, dict):
             continue
-        if assessment.get("verdict") != "automatable_with_control":
-            continue
-        if assessment.get("controls"):
-            continue
-
-        assessment["controls"] = [
-            {
-                "kind": "human_approval",
-                "reason": AUTO_CONTROL_REASON,
-                "addresses": list(assessment.get("risks") or []),
-            }
-        ]
+        _add_mandatory_risks(assessment, graph)
+        _downgrade_unsafe_verdict(assessment)
+        _fill_missing_control(assessment)
 
     return data
+
+
+def _add_mandatory_risks(assessment: dict, graph: ProcessGraph) -> None:
+    """Flag risks implied by what the step does, not by whether the model spotted them."""
+
+    step = graph.step(assessment.get("step_id", ""))
+    if step is None:
+        return
+
+    required = mandatory_risks(step.name, step.description, step.kind.value)
+    if not required:
+        return
+
+    present = {str(r) for r in assessment.get("risks") or []}
+    added = sorted(r.value for r in required if r.value not in present)
+    if not added:
+        return
+
+    assessment["risks"] = sorted(present | set(added))
+
+    rationale = (assessment.get("rationale") or "").rstrip()
+    assessment["rationale"] = f"{rationale} {AUTO_RISK_NOTE}".strip()
+
+
+def _downgrade_unsafe_verdict(assessment: dict) -> None:
+    """Nothing carrying a never-unattended risk stays marked fully automatic."""
+
+    if assessment.get("verdict") != "fully_automatable":
+        return
+
+    risks = {str(r) for r in assessment.get("risks") or []}
+    if not risks & {r.value for r in NEVER_FULLY_AUTOMATIC}:
+        return
+
+    assessment["verdict"] = "automatable_with_control"
+    assessment["blockers"] = []  # a fully_automatable verdict cannot carry these
+
+
+def _fill_missing_control(assessment: dict) -> None:
+    """Supply a conservative guard where one is called for but absent.
+
+    A step that needed an approval and gets one is right. A step that needed one
+    and gets nothing is how money leaves an account unattended. The inserted
+    control says plainly that it was added here rather than chosen by the model,
+    because a guard rail nobody knows about is not much of a guard rail.
+    """
+
+    if assessment.get("verdict") != "automatable_with_control":
+        return
+    if assessment.get("controls"):
+        return
+
+    assessment["controls"] = [
+        {
+            "kind": "human_approval",
+            "reason": AUTO_CONTROL_REASON,
+            "addresses": list(assessment.get("risks") or []),
+        }
+    ]
 
 
 def _process_summary(graph: ProcessGraph) -> str:

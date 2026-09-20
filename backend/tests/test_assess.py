@@ -3,7 +3,7 @@
 import json
 
 from app.assess import assess_process
-from app.schemas.assessment import ControlKind
+from app.schemas.assessment import ControlKind, RiskFlag, Verdict
 from app.schemas.process import Edge, ProcessGraph, Step, StepKind, Trigger, TriggerKind
 from tests.test_extract import ScriptedLLM
 
@@ -92,13 +92,18 @@ def test_a_sound_plan_is_accepted_first_time():
     assert len(result.attempts) == 1
 
 
-def test_marking_a_payment_fully_automatic_is_rejected_and_repaired():
-    llm = ScriptedLLM([json.dumps(plan_dict(reckless=True)), json.dumps(plan_dict())])
+def test_marking_a_payment_fully_automatic_is_corrected_not_rejected():
+    """The old behaviour was to reject and retry. Correcting it is safer and cheaper."""
+
+    llm = ScriptedLLM([json.dumps(plan_dict(reckless=True))])
     result = assess_process(graph(), llm)
 
     assert result.ok
-    assert not result.attempts[0].ok
-    assert any("moves_money" in e for e in result.attempts[0].errors)
+    assert len(result.attempts) == 1
+
+    pay = result.plan.for_step("pay_invoice")
+    assert pay.verdict is Verdict.AUTOMATABLE_WITH_CONTROL
+    assert pay.controls
 
 
 def test_a_skipped_step_is_caught_by_the_cross_check():
@@ -110,18 +115,20 @@ def test_a_skipped_step_is_caught_by_the_cross_check():
 
 
 def test_the_repair_prompt_shows_the_process_and_the_objections():
-    llm = ScriptedLLM([json.dumps(plan_dict(reckless=True)), json.dumps(plan_dict())])
+    """Uses a skipped step, which is a fault normalisation cannot paper over."""
+
+    llm = ScriptedLLM([json.dumps(plan_dict(missing_step=True)), json.dumps(plan_dict())])
     assess_process(graph(), llm)
 
     repair = llm.prompts[1]
     assert "pay_invoice" in repair
-    assert "moves_money" in repair
+    assert "no assessment" in repair
     assert "does not satisfy the rules" in repair
 
 
 def test_it_stops_early_when_the_same_fault_comes_back():
-    reckless = json.dumps(plan_dict(reckless=True))
-    llm = ScriptedLLM([reckless, reckless, reckless, reckless])
+    incomplete = json.dumps(plan_dict(missing_step=True))
+    llm = ScriptedLLM([incomplete, incomplete, incomplete, incomplete])
     result = assess_process(graph(), llm, max_attempts=3)
 
     assert not result.ok
@@ -153,3 +160,41 @@ def test_a_control_the_model_chose_is_left_alone():
     pay = result.plan.for_step("pay_invoice")
     assert pay.controls[0].kind is ControlKind.THRESHOLD_APPROVAL
     assert "Added automatically" not in pay.controls[0].reason
+
+
+def test_an_irreversible_step_is_caught_even_when_the_model_missed_it():
+    """The gap that prompted this: "delete the email" came back fully automatic."""
+
+    g = ProcessGraph(
+        title="Inbox tidying",
+        summary="Read it, then bin it.",
+        trigger=Trigger(kind=TriggerKind.SCHEDULE, description="Daily", first_step_id="read_it"),
+        steps=[
+            Step(id="read_it", name="Read the message", description="...", kind=StepKind.READ),
+            Step(id="bin_it", name="Delete the email", description="Remove it from the inbox.",
+                 kind=StepKind.WRITE),
+        ],
+        edges=[Edge(from_step="read_it", to_step="bin_it")],
+    )
+
+    oblivious = {
+        "process_title": "Inbox tidying",
+        "headline": "All of this can run itself.",
+        "assessments": [
+            {"step_id": "read_it", "verdict": "fully_automatable", "rationale": "Safe.",
+             "confidence": "high", "risks": [], "controls": [], "blockers": []},
+            {"step_id": "bin_it", "verdict": "fully_automatable", "rationale": "Keeps it tidy.",
+             "confidence": "high", "risks": [], "controls": [], "blockers": []},
+        ],
+    }
+
+    result = assess_process(g, ScriptedLLM([json.dumps(oblivious)]))
+
+    assert result.ok
+    binned = result.plan.for_step("bin_it")
+    assert RiskFlag.IRREVERSIBLE in binned.risks
+    assert binned.verdict is Verdict.AUTOMATABLE_WITH_CONTROL
+    assert binned.controls
+
+    # And it must not flag the harmless one.
+    assert result.plan.for_step("read_it").verdict is Verdict.FULLY_AUTOMATABLE

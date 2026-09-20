@@ -18,6 +18,7 @@ from app.schemas.assessment import (
     RiskFlag,
     StepAssessment,
     Verdict,
+    mandatory_risks,
     validate_plan,
 )
 from app.schemas.process import Edge, ProcessGraph, Step, StepKind, Trigger, TriggerKind
@@ -202,3 +203,40 @@ def test_counts_summarise_the_plan():
     counts = plan.counts()
     assert counts[Verdict.FULLY_AUTOMATABLE] == 2
     assert counts[Verdict.HUMAN_REQUIRED] == 1
+
+
+# --- Risks we insist on, whatever the model noticed ----------------------------
+
+
+def test_deleting_is_always_irreversible():
+    assert RiskFlag.IRREVERSIBLE in mandatory_risks("Delete the email", "Remove it from the inbox.")
+
+
+def test_paying_moves_money():
+    assert RiskFlag.MOVES_MONEY in mandatory_risks("Pay invoice via banking portal", "")
+
+
+def test_recording_that_something_was_paid_does_not_move_money():
+    """The false positive that made half a finance process light up amber."""
+
+    risks = mandatory_risks("Mark as paid in spreadsheet", "Update the tracking sheet.")
+    assert RiskFlag.MOVES_MONEY not in risks
+
+
+def test_reading_a_suppliers_email_is_not_external_communication():
+    risks = mandatory_risks("Get next supplier invoice", "Read the email in the shared inbox.")
+    assert RiskFlag.EXTERNAL_COMMS not in risks
+
+
+def test_emailing_a_customer_is_external_communication():
+    risks = mandatory_risks("Email the customer their receipt", "", "notify")
+    assert RiskFlag.EXTERNAL_COMMS in risks
+
+
+def test_an_internal_message_is_not_external_communication():
+    risks = mandatory_risks("Message accounting on Slack", "Tell the team it is logged.", "notify")
+    assert RiskFlag.EXTERNAL_COMMS not in risks
+
+
+def test_harmless_work_is_left_alone():
+    assert mandatory_risks("Read the invoice total", "Take the amount off the PDF.") == set()
