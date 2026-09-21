@@ -211,13 +211,56 @@ def test_grade_guard_reports_a_spurious_flag():
     assert "wrongly flagged" in result.outcomes[0].detail
 
 
-def test_a_known_gap_fails_without_being_a_surprise():
+def test_the_live_suite_has_no_unexplained_failures():
+    """Every failure is either fixed or written down. Nothing silently red."""
+
     report = run_guards()
 
-    assert report.gaps, "the suite should still be recording gaps we have not closed"
     assert not report.surprises, [
         (r.case_id, r.outcomes[0].detail) for r in report.surprises
     ]
+
+
+def test_a_known_gap_fails_without_counting_as_a_surprise():
+    """The mechanism, tested on its own rather than on whatever is failing today.
+
+    Written this way deliberately. Asserting that the real suite still contains
+    a gap makes closing the last one break the tests, which is precisely the
+    wrong incentive.
+    """
+
+    from evals.cases import GuardCase
+
+    case = GuardCase(
+        id="pretend-gap",
+        step_name="Do something we cannot detect yet",
+        kind="write",
+        expect=frozenset({RiskFlag.MOVES_MONEY}),
+        why="Exercising the gap mechanism.",
+        known_gap="Not implemented on purpose.",
+    )
+    report = Report(mode="guards", results=[grade_guard(case)])
+
+    assert report.gaps
+    assert not report.surprises
+    assert report.score == 0.0
+
+
+def test_a_known_gap_that_starts_passing_is_reported_as_fixed():
+    from evals.cases import GuardCase
+
+    case = GuardCase(
+        id="pretend-fixed",
+        step_name="Pay the contractor invoice",
+        kind="write",
+        expect=frozenset({RiskFlag.MOVES_MONEY}),
+        why="Exercising the fixed path.",
+        known_gap="Stale excuse that should now be deleted.",
+    )
+    report = Report(mode="guards", results=[grade_guard(case)])
+
+    assert report.fixed
+    assert not report.gaps
 
 
 # --- Baselines ----------------------------------------------------------------

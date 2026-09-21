@@ -337,8 +337,8 @@ use the same idea with a scripted stand-in.
 
 **A scored eval suite, with the failures left in.**
 [`backend/evals/`](backend/evals/) grades properties rather than exact output, tests
-both directions of the risk detector, and keeps three known gaps visible instead of
-quietly deleting them. See [Measuring it](#measuring-it).
+both directions of the risk detector, and keeps known gaps visible instead of quietly
+deleting them. See [Measuring it](#measuring-it).
 
 ## Try it
 
@@ -369,7 +369,7 @@ cd backend
 .venv/Scripts/python -m pytest
 ```
 
-114 tests, none of which call an API. The model is substituted with a scripted
+126 tests, none of which call an API. The model is substituted with a scripted
 stand-in that returns deliberately broken output, so the repair loop can be tested
 precisely and for free.
 
@@ -402,27 +402,33 @@ catches the day a schema change stops us reading an answer that used to be fine,
 **cannot tell you a prompt improved**, because the saved answer came from the old
 prompt. Only `live` can do that.
 
-Two things worth noting in the current score:
+Two things worth noting:
 
 **It tests both directions.** A risk detector that flags everything catches every
-real risk and is worthless, so half the cases are harmless steps that must stay
-quiet. "Mark the payment as received" and "Log the payment reference" are as much
-the point as "Pay the contractor invoice".
+real risk and is worthless, so nearly half the cases are harmless steps that must
+stay quiet. "Mark the payment as received" and "Log the payment reference" are as
+much the point as "Pay the contractor invoice". The run reports the two separately,
+because one number hides which way it is failing.
 
-**Failures are written down rather than deleted.** Three cases fail today. Writing
+**Failures get written down, not deleted.** A case can be marked a known gap: still
+run, still scored, still printed, but not breaking the build, and the run says so
+loudly if one starts passing. Deleting the failing case is the easiest way to make a
+score go up, so a case that vanishes from the baseline counts as a regression.
+
+Building it found two real holes, which is the entire argument for having it.
+
+`legal_or_compliance` was one of the three risks in the never-fully-automatic rule
+and had no code behind it at all, exactly the arrangement that let "delete the email"
+through. Signing an agreement, serving notice and terminating a tenancy are now
+caught on the leading verb, so filing a signed agreement stays clerical.
+
+Three money cases then failed honestly for a fortnight's worth of reasons: writing
 off a balance, issuing a credit note and releasing a deposit are all money moving,
-and none of them contains a word we can match on without lighting up half a normal
-finance process. They are marked as known gaps: still reported, still scored, but
-they do not break the build, and if one ever starts passing the run says so. Deleting
-the failing case is the easiest way to make a score go up, so the harness also treats
-a case that disappears from the baseline as a regression.
-
-Building this found a real hole. `legal_or_compliance` was one of the three risks in
-the never-fully-automatic rule and had no code behind it at all, exactly the
-arrangement that let "delete the email" through. Signing an agreement, serving notice
-and terminating a tenancy are now caught in
-[`assessment.py`](backend/app/schemas/assessment.py), on the leading verb only, so
-filing a signed agreement stays clerical.
+and every single word in them is too common to match on. "Balance" is in every
+reconciliation step, "credit" is in every credit check, and you release listings,
+keys and reports as happily as you release funds. They are now matched as ordered
+phrases, which is why "note the credit check" stays quiet: same two words, wrong
+order, different thing.
 
 ## Status
 
@@ -430,8 +436,7 @@ Working: the two-stage pipeline, validation, repair, record/replay, a web front 
 with the process rendered as a diagram, the time arithmetic, shareable links, export
 to n8n, and a scored eval suite with committed baselines.
 
-Next: closing the three known gaps in risk detection, which needs phrase matching
-rather than single words.
+Next: a hosted demo, so it can be tried without cloning anything.
 
 One deployment note: shared links are client-side routes, so static hosting needs a
 rewrite sending `/s/*` to `index.html`. The Vite dev server does this already.

@@ -254,5 +254,53 @@ def test_filing_a_signed_agreement_does_not():
     assert RiskFlag.LEGAL_OR_COMPLIANCE not in risks
 
 
+def test_writing_off_a_balance_is_money():
+    """No single word here says money, which is the whole reason for phrases."""
+
+    assert RiskFlag.MOVES_MONEY in mandatory_risks("Write off the outstanding balance")
+
+
+def test_issuing_a_credit_note_is_money():
+    assert RiskFlag.MOVES_MONEY in mandatory_risks("Issue a credit note to the landlord")
+
+
+def test_releasing_a_deposit_is_money():
+    assert RiskFlag.MOVES_MONEY in mandatory_risks("Release the deposit to the tenant")
+
+
+def test_a_phrase_matches_across_filler_words():
+    assert RiskFlag.MOVES_MONEY in mandatory_risks("Release deposit funds")
+    assert RiskFlag.MOVES_MONEY in mandatory_risks("Release the holding deposit")
+
+
+def test_a_phrase_matches_in_the_plural():
+    assert RiskFlag.MOVES_MONEY in mandatory_risks("Issue credit notes for the month")
+
+
+def test_the_same_two_words_in_the_other_order_are_not_a_credit_note():
+    """Order is what makes the phrase safe to use. Both words are too common."""
+
+    assert mandatory_risks("Note the credit check result on the application") == set()
+
+
+def test_recording_a_credit_note_is_not_issuing_one():
+    assert mandatory_risks("Log the credit note reference against the account") == set()
+
+
+def test_releasing_something_that_is_not_money_stays_quiet():
+    assert mandatory_risks("Release the property listing to the portals") == set()
+    assert mandatory_risks("Release the keys to the contractor") == set()
+
+
+def test_a_balance_on_its_own_stays_quiet():
+    assert mandatory_risks("Check the outstanding balance on the account") == set()
+
+
+def test_a_phrase_broken_up_by_real_words_does_not_match():
+    """Filler is skipped. Anything meaningful in between means it is not the phrase."""
+
+    assert mandatory_risks("Write the inspection report off site") == set()
+
+
 def test_harmless_work_is_left_alone():
     assert mandatory_risks("Read the invoice total", "Take the amount off the PDF.") == set()

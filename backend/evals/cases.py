@@ -151,11 +151,6 @@ SHOULD_FIRE: list[GuardCase] = [
         kind="write",
         expect=frozenset({RiskFlag.MOVES_MONEY}),
         why="Forgiving a debt is a financial decision, whatever it is called.",
-        known_gap=(
-            "No single word here says money. Catching it needs either the phrase "
-            "or a different technique, and adding 'balance' on its own would "
-            "light up every reconciliation step in the suite."
-        ),
     ),
     GuardCase(
         id="issues-a-credit-note",
@@ -163,10 +158,6 @@ SHOULD_FIRE: list[GuardCase] = [
         kind="write",
         expect=frozenset({RiskFlag.MOVES_MONEY}),
         why="A credit note reduces what somebody owes, which is money moving.",
-        known_gap=(
-            "Same shape as the write off. 'Credit' alone would fire on credit "
-            "checks, which are routine and harmless."
-        ),
     ),
     GuardCase(
         id="releases-a-deposit",
@@ -174,10 +165,6 @@ SHOULD_FIRE: list[GuardCase] = [
         kind="write",
         expect=frozenset({RiskFlag.MOVES_MONEY}),
         why="Deposit money leaving the scheme, and it cannot easily be pulled back.",
-        known_gap=(
-            "'Release' is the money word here and it is also what you do to a "
-            "property listing, a set of keys and a report. Too broad to add."
-        ),
     ),
     GuardCase(
         id="marks-a-record-as-deleted",
@@ -259,6 +246,40 @@ SHOULD_STAY_QUIET: list[GuardCase] = [
             "The counterweight to the legal cases above. Every word that makes "
             "signing dangerous is in this label, and filing a copy is clerical."
         ),
+    ),
+    GuardCase(
+        id="notes-a-credit-check",
+        step_name="Note the credit check result on the application",
+        kind="write",
+        expect=frozenset(),
+        why=(
+            "Both words of the credit note phrase, in the wrong order, meaning "
+            "something else entirely. Order is what keeps that phrase usable."
+        ),
+    ),
+    GuardCase(
+        id="logs-a-credit-note",
+        step_name="Log the credit note reference against the account",
+        kind="write",
+        expect=frozenset(),
+        why="The phrase is right there, and recording one is not issuing one.",
+    ),
+    GuardCase(
+        id="releases-a-listing",
+        step_name="Release the property listing to the portals",
+        kind="write",
+        expect=frozenset(),
+        why=(
+            "Why 'release' could never be a word on its own. Listings, keys and "
+            "reports all get released and none of it is money."
+        ),
+    ),
+    GuardCase(
+        id="checks-a-balance",
+        step_name="Check the outstanding balance on the account",
+        kind="read",
+        expect=frozenset(),
+        why="Why 'balance' could never be a word on its own either.",
     ),
 ]
 

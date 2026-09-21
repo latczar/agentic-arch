@@ -140,6 +140,92 @@ LEGAL_VERBS = frozenset(
     }
 )
 
+# Some money is only visible in a pair of words. Writing off a balance, issuing
+# a credit note and releasing a deposit are all money moving, and every single
+# word in them is too common to match on: "balance" is in every reconciliation
+# step, "credit" is in every credit check, and you release listings, keys and
+# reports as happily as you release funds.
+#
+# So these are matched as phrases in order, which stays as explainable as the
+# word lists above. "It fired because the step says credit note" is something a
+# person can argue with. Order is what does the work: "note the credit check"
+# contains both words and is not a credit note.
+MONEY_PHRASES: tuple[tuple[str, ...], ...] = (
+    ("write", "off"),
+    ("writing", "off"),
+    ("written", "off"),
+    ("credit", "note"),
+    ("debit", "note"),
+    ("release", "deposit"),
+    ("releasing", "deposit"),
+    ("released", "deposit"),
+    ("release", "fund"),
+    ("releasing", "fund"),
+    ("draw", "down"),
+    ("drawing", "down"),
+)
+
+# Skipped when matching a phrase, so "release the deposit" and "release deposit"
+# are the same thing.
+FILLER_WORDS = frozenset(
+    {"the", "a", "an", "our", "their", "its", "his", "her", "this", "that", "any"}
+)
+
+# One real word is allowed between the parts of a phrase, because an adjective
+# in the middle does not change what the step does: "release the holding deposit"
+# is still releasing a deposit.
+#
+# One rather than two, and that is the whole trade off. Two would let "write the
+# inspection report off site" through as money. One lets an adjective in and
+# keeps a clause out, which is the line worth drawing.
+MAX_WORDS_BETWEEN = 1
+
+
+def _singular(word: str) -> str:
+    """Crudest possible plural handling, so "credit notes" matches "credit note".
+
+    Not linguistics. Just enough that a phrase list does not need two entries
+    for every noun in it.
+    """
+
+    return word[:-1] if len(word) > 3 and word.endswith("s") else word
+
+
+def _has_phrase(ordered: list[str], phrase: tuple[str, ...]) -> bool:
+    """Does this phrase appear in order, close together, in this text?
+
+    Filler is ignored entirely and one real word is allowed between the parts.
+    Order is the important half: "note the credit check" contains both words of
+    "credit note" and means something completely different.
+    """
+
+    wanted = [_singular(w) for w in phrase]
+    position = 0
+    skipped = 0
+
+    for token in ordered:
+        if token in FILLER_WORDS:
+            continue
+
+        word = _singular(token)
+        if word == wanted[position]:
+            position += 1
+            skipped = 0
+            if position == len(wanted):
+                return True
+            continue
+
+        if position and skipped < MAX_WORDS_BETWEEN:
+            skipped += 1
+            continue
+
+        # Too far from the last part to still be the same phrase. Start again,
+        # letting this token be a fresh first word.
+        position = 1 if word == wanted[0] else 0
+        skipped = 0
+
+    return False
+
 
 def mandatory_risks(name: str, description: str = "", kind: str | None = None) -> set[RiskFlag]:
     """Risks the step carries by virtue of what it does, whatever the model said.
@@ -151,10 +237,11 @@ def mandatory_risks(name: str, description: str = "", kind: str | None = None) -
     doing rather than on what it mentions.
     """
 
-    def tokens(text: str) -> set[str]:
-        return {w.strip(".,;:!?()'\"").lower() for w in text.split()}
+    def clean(word: str) -> str:
+        return word.strip(".,;:!?()'\"").lower()
 
-    words = tokens(name) | tokens(description)
+    ordered = [clean(w) for w in f"{name} {description}".split()]
+    words = set(ordered)
     lead = next(iter(name.split()), "").strip(".,;:!?()'\"").lower()
 
     found: set[RiskFlag] = set()
@@ -163,8 +250,13 @@ def mandatory_risks(name: str, description: str = "", kind: str | None = None) -
     if words & RISK_WORDS[RiskFlag.IRREVERSIBLE]:
         found.add(RiskFlag.IRREVERSIBLE)
 
-    # Moving money, but not merely writing down that it moved.
-    if words & RISK_WORDS[RiskFlag.MOVES_MONEY] and lead not in RECORDING_VERBS:
+    # Moving money, but not merely writing down that it moved. The phrases get
+    # the same leading-verb test as the single words: logging that a credit note
+    # exists is not issuing one.
+    moves_money = bool(words & RISK_WORDS[RiskFlag.MOVES_MONEY]) or any(
+        _has_phrase(ordered, phrase) for phrase in MONEY_PHRASES
+    )
+    if moves_money and lead not in RECORDING_VERBS:
         found.add(RiskFlag.MOVES_MONEY)
 
     # Sending has to be the action, not something the step happens to mention.

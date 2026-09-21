@@ -1,9 +1,9 @@
 {
   "mode": "guards",
-  "recorded_at": "2026-09-21T07:15:11+00:00",
-  "score": 0.8696,
-  "passed": 20,
-  "total": 23,
+  "recorded_at": "2026-09-21T19:47:02+00:00",
+  "score": 1.0,
+  "passed": 27,
+  "total": 27,
   "cases": {
     "deletes-an-email": {
       "passed": 1,
@@ -50,15 +50,15 @@
       "total": 1
     },
     "writes-off-a-balance": {
-      "passed": 0,
+      "passed": 1,
       "total": 1
     },
     "issues-a-credit-note": {
-      "passed": 0,
+      "passed": 1,
       "total": 1
     },
     "releases-a-deposit": {
-      "passed": 0,
+      "passed": 1,
       "total": 1
     },
     "marks-a-record-as-deleted": {
@@ -94,6 +94,22 @@
       "total": 1
     },
     "reads-a-signed-agreement": {
+      "passed": 1,
+      "total": 1
+    },
+    "notes-a-credit-check": {
+      "passed": 1,
+      "total": 1
+    },
+    "logs-a-credit-note": {
+      "passed": 1,
+      "total": 1
+    },
+    "releases-a-listing": {
+      "passed": 1,
+      "total": 1
+    },
+    "checks-a-balance": {
       "passed": 1,
       "total": 1
     }
