@@ -58,16 +58,24 @@ body {
   padding: 48px 16px 64px;
 }
 
+.masthead {
+  margin-bottom: 28px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--border);
+}
+
 .masthead h1 {
-  margin: 0 0 8px;
+  margin: 0 0 10px;
   font-size: clamp(1.75rem, 4vw, 2.5rem);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.028em;
+  line-height: 1.1;
 }
 
 .masthead p {
-  margin: 0 0 32px;
+  margin: 0;
   color: var(--muted);
-  max-width: 62ch;
+  max-width: 58ch;
+  font-size: 1.0625rem;
 }
 
 /* Composer ---------------------------------------------------------------- */
@@ -76,7 +84,7 @@ body {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 16px;
+  padding: 18px;
   box-shadow: var(--shadow);
 }
 
@@ -111,12 +119,30 @@ body {
 
 button {
   font: inherit;
+  font-weight: 500;
   cursor: pointer;
   border-radius: 8px;
   border: 1px solid var(--accent);
   background: var(--accent);
   color: #fff;
   padding: 9px 18px;
+  transition: background-color 0.12s ease, border-color 0.12s ease,
+    color 0.12s ease, transform 0.06s ease;
+}
+
+button:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+/* A button that moves on press feels connected to the click. One pixel is
+   enough; more reads as a novelty. */
+button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 button:disabled {
@@ -208,13 +234,16 @@ button:disabled {
 }
 
 .results h2 {
-  margin: 0 0 4px;
-  letter-spacing: -0.01em;
+  margin: 0;
+  font-size: 1.4rem;
+  letter-spacing: -0.015em;
+  line-height: 1.25;
 }
 
 .results__summary {
-  margin: 0 0 16px;
+  margin: 8px 0 18px;
   color: var(--muted);
+  max-width: 68ch;
 }
 
 .diagram {
@@ -223,14 +252,15 @@ button:disabled {
   border-radius: var(--radius);
   background: var(--surface);
   overflow: hidden;
+  box-shadow: var(--shadow);
 }
 
 /* Nodes ------------------------------------------------------------------- */
 
 .node {
-  width: 240px;
+  width: 250px;
   min-height: 92px;
-  padding: 10px 12px;
+  padding: 12px 14px;
   border-radius: 10px;
   border: 1px solid var(--border);
   border-left: 4px solid var(--unclear);
@@ -238,8 +268,13 @@ button:disabled {
   box-shadow: var(--shadow);
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
   cursor: pointer;
+  transition: box-shadow 0.12s ease, border-color 0.12s ease;
+}
+
+.node:hover {
+  box-shadow: 0 2px 4px rgba(28, 26, 23, 0.08), 0 8px 20px rgba(28, 26, 23, 0.07);
 }
 
 .node[data-decision="true"] {
@@ -494,19 +529,26 @@ button:disabled {
   color: var(--accent);
 }
 
+/* Title and actions share a line; the summary gets the full width underneath.
+   The previous version put the summary alongside the buttons, which left the
+   heading wrapping inside a 260px column next to a large empty gap. */
 .results__head {
   display: flex;
-  align-items: flex-start;
+  align-items: baseline;
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
 }
 
-/* Without this the title block claims the full width and pushes the button onto
-   its own line, where it reads as part of the diagram rather than an action. */
-.results__head > div {
-  flex: 1 1 260px;
+.results__head h2 {
+  flex: 1 1 auto;
   min-width: 0;
+}
+
+.results__buttons {
+  display: flex;
+  gap: 8px;
+  flex: 0 0 auto;
 }
 
 .secondary {

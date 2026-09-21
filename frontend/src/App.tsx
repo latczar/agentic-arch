@@ -239,10 +239,7 @@ export default function App() {
         <main className="results">
           <div className="results__diagram">
             <div className="results__head">
-              <div>
-                <h2>{result.graph.title}</h2>
-                <p className="results__summary">{result.graph.summary}</p>
-              </div>
+              <h2>{result.graph.title}</h2>
               <div className="results__buttons">
                 {!shared && (
                   <button
@@ -264,6 +261,8 @@ export default function App() {
                 </button>
               </div>
             </div>
+
+            <p className="results__summary">{result.graph.summary}</p>
 
             {shareUrl && (
               <div className="sharebox">

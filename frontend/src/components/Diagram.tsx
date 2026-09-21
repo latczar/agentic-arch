@@ -1,8 +1,10 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import {
   Background,
   Controls,
   ReactFlow,
+  ReactFlowProvider,
+  useReactFlow,
   type Edge as FlowEdge,
   type Node as FlowNode,
 } from "@xyflow/react";
@@ -21,7 +23,48 @@ interface Props {
   onSelect: (stepId: string | null) => void;
 }
 
-export function Diagram({ graph, plan, selected, onSelect }: Props) {
+/**
+ * Re-fit the diagram when the panel changes size.
+ *
+ * `fitView` only runs once, on mount. Everything after that leaves the graph
+ * framed for a width the panel no longer has, so resizing a window pushes the
+ * process into a corner with an empty half beside it. Common enough to be worth
+ * the observer: the panel is half a two-column grid that reflows at 900px.
+ */
+function RefitOnResize() {
+  const { fitView } = useReactFlow();
+  const frame = useRef(0);
+
+  useEffect(() => {
+    const parent = document.querySelector(".diagram");
+    if (!parent) return;
+
+    const observer = new ResizeObserver(() => {
+      // Coalesced into the next frame. A drag-resize fires this continuously,
+      // and re-fitting on every pixel is work nobody sees.
+      cancelAnimationFrame(frame.current);
+      frame.current = requestAnimationFrame(() => fitView({ padding: 0.15 }));
+    });
+
+    observer.observe(parent);
+    return () => {
+      cancelAnimationFrame(frame.current);
+      observer.disconnect();
+    };
+  }, [fitView]);
+
+  return null;
+}
+
+export function Diagram(props: Props) {
+  return (
+    <ReactFlowProvider>
+      <Canvas {...props} />
+    </ReactFlowProvider>
+  );
+}
+
+function Canvas({ graph, plan, selected, onSelect }: Props) {
   const { nodes, edges } = useMemo(() => {
     const verdictFor = (stepId: string) =>
       plan?.assessments.find((a) => a.step_id === stepId) ?? null;
@@ -76,6 +119,7 @@ export function Diagram({ graph, plan, selected, onSelect }: Props) {
       >
         <Background gap={20} size={1} />
         <Controls showInteractive={false} />
+        <RefitOnResize />
       </ReactFlow>
     </div>
   );
