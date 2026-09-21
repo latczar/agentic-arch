@@ -2,6 +2,8 @@
 
 **Describe repetitive work in plain English. Get back a validated automation architecture.**
 
+**[Try it](https://ai-auto-architect.vercel.app).** Two worked examples, no sign-up, no API key.
+
 You tell it what you do by hand. It works out the steps, judges which ones a computer
 could take over, and, the part that matters, flags where a human has to stay in the
 loop and why. Then it exports a workflow scaffold you can import into n8n.
@@ -349,6 +351,17 @@ Every real call is saved. Two curated cases live in `backend/recordings/`, so
 `--replay` reproduces either example above with no network and no API key. The tests
 use the same idea with a scripted stand-in.
 
+**Tests that agreed with the bug.**
+Shared analyses were written to blob storage correctly and never read back. The
+fetch returned 200, the body was there, and the code looked for it under a name it
+does not have: the published examples are all of the asynchronous client, which
+streams the body, while a request handler uses the synchronous one, which returns
+it whole. Every test passed throughout, because the fake was written from the same
+examples as the code and was wrong in the same direction. The fake now mirrors the
+real type, and a test reads the library's own annotations so the two drifting apart
+is itself a failure. A stand-in built from the same assumption as the code under
+test does not check the assumption.
+
 **A scored eval suite, with the failures left in.**
 [`backend/evals/`](backend/evals/) grades properties rather than exact output, tests
 both directions of the risk detector, and keeps known gaps visible instead of quietly
@@ -450,7 +463,7 @@ Working: the two-stage pipeline, validation, repair, record/replay, a web front 
 with the process rendered as a diagram, the time arithmetic, shareable links, export
 to n8n, and a scored eval suite with committed baselines.
 
-Next: the hosted demo needs its first deploy, then a link at the top of this file.
+Live at [ai-auto-architect.vercel.app](https://ai-auto-architect.vercel.app).
 
 ## Deploying it
 
@@ -460,8 +473,8 @@ cross-origin anything.
 
 ```bash
 npm i -g vercel
-vercel        # first run links the project
-vercel --prod
+vercel          # first run creates and links the project
+vercel --prod   # the public URL
 ```
 
 Three things to know.
