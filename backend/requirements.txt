@@ -1,6 +1,9 @@
+# Local development. The deployment installs from ../pyproject.toml instead,
+# and a test keeps the two in step so they cannot quietly disagree.
 pydantic>=2.9
-google-genai>=2.24
 fastapi>=0.115
 uvicorn[standard]>=0.32
+google-genai>=2.24
+vercel>=0.3
 pytest>=8.3
 httpx>=0.27

@@ -1,3 +1,34 @@
+[project]
+name = "ai-automation-architect"
+version = "0.1.0"
+description = "Turns a plain-English process description into a validated automation plan."
+requires-python = ">=3.11"
+
+# The deployment's dependency list. Kept in step with backend/requirements.txt
+# by a test, because two lists of the same thing drift the moment nobody is
+# checking, and the way you find out is a deployment that installed something
+# different from what you tested.
+dependencies = [
+    "pydantic>=2.9",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "google-genai>=2.24",
+    # Blob storage for shared analyses. Only used when deployed; locally the
+    # same code falls back to SQLite. See backend/app/share.py.
+    "vercel>=0.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "httpx>=0.27",
+]
+
+[tool.uv]
+# Not a library, just an application with a dependency list, so there is
+# nothing here to build into a wheel.
+package = false
+
 [tool.vercel]
 # The app is re-exported from index.py at the root. See the note in that file.
 entrypoint = "index:app"

@@ -1,7 +1,0 @@
-# Vercel installs from the repository root, so this points at the real list
-# rather than keeping a second copy that can drift out of step with it.
--r backend/requirements.txt
-
-# Blob storage, used for shared analyses when deployed. Locally the same code
-# falls back to SQLite, so this is only needed on a host with no disk.
-vercel>=0.3
