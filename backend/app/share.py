@@ -24,6 +24,7 @@ have to care.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import secrets
 import sqlite3
@@ -33,6 +34,8 @@ from pathlib import Path
 from typing import Protocol, runtime_checkable
 
 from pydantic import BaseModel
+
+log = logging.getLogger(__name__)
 
 DEFAULT_DB = Path(__file__).resolve().parents[1] / "shares.db"
 
@@ -237,16 +240,27 @@ class BlobShareStore:
         try:
             result = self._client.get(self._path(share_id), access="private")
         except Exception:
-            # A missing object and a store having a bad day look the same from
-            # here, and both mean the reader gets "that link does not work".
+            # A missing object and a store having a bad day look the same to a
+            # reader, and both mean "that link does not work". They are not the
+            # same to us, so the difference goes in the log rather than being
+            # thrown away. Swallowing an exception without a trace turns a
+            # five-minute fix into an afternoon.
+            log.exception("blob read failed for %s", share_id)
             return None
 
-        if result is None or getattr(result, "status_code", 200) != 200:
+        if result is None:
+            log.info("no blob for share %s", share_id)
+            return None
+
+        status = getattr(result, "status_code", 200)
+        if status != 200:
+            log.warning("blob read for %s returned status %s", share_id, status)
             return None
 
         try:
             record = ShareRecord.decoded(_read_all(result))
         except Exception:
+            log.exception("blob content for %s could not be read back", share_id)
             return None
 
         if record.expires_at < datetime.now(timezone.utc):
@@ -256,7 +270,7 @@ class BlobShareStore:
             try:
                 self._client.delete(self._path(share_id))
             except Exception:
-                pass
+                log.warning("could not sweep expired share %s", share_id, exc_info=True)
             return None
 
         return record
@@ -267,19 +281,35 @@ class BlobShareStore:
 
 
 def _read_all(result) -> str:
-    """Get the bytes out of a blob read, whichever shape the SDK returned.
+    """Get the text out of a blob read, whichever shape the client returned.
 
-    The SDK hands back a stream, and whether that is a plain chunk iterator
-    depends on which client was constructed. Handling both here keeps the
-    uncertainty in one function instead of spread through the store.
+    The synchronous client returns the whole body as `content` bytes. The
+    asynchronous one streams it in chunks. The published examples are all
+    asynchronous, so the streaming shape is the one that is easy to find and the
+    wrong one for the client used here.
+
+    That cost a deployment to discover, because the failure was silent: the
+    fetch returned 200, the body was present, and the code went looking for it
+    under a name it does not have. Both shapes are handled now, checked in the
+    order of how likely they are rather than how well documented.
     """
 
+    content = getattr(result, "content", None)
+    if isinstance(content, (bytes, bytearray)):
+        return bytes(content).decode("utf-8")
+    if isinstance(content, str):
+        return content
+
     stream = getattr(result, "stream", None)
-    if stream is None:
-        raise ValueError("the blob read returned no content")
     if isinstance(stream, (bytes, bytearray)):
         return bytes(stream).decode("utf-8")
-    return b"".join(chunk for chunk in stream).decode("utf-8")
+    if stream is not None:
+        return b"".join(chunk for chunk in stream).decode("utf-8")
+
+    raise ValueError(
+        "the blob read returned 200 but no body under 'content' or 'stream'; "
+        f"the result was a {type(result).__name__}"
+    )
 
 
 def open_store(path: Path | None = None) -> ShareStorage:

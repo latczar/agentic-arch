@@ -63,9 +63,25 @@ class FakeBlobClient:
 
 
 class _Result:
+    """What the synchronous client hands back: the whole body, as bytes.
+
+    Checked against the real dataclass rather than assumed. The first version of
+    this fake used a chunk iterator called `stream`, copied from the published
+    examples, which are all of the asynchronous client. The store passed every
+    test here and failed on the first real read, because the fetch returned 200
+    and the body was simply under a different name.
+    """
+
     def __init__(self, data: bytes) -> None:
         self.status_code = 200
-        # A chunk iterator, which is the awkward shape the real SDK returns.
+        self.content = data
+
+
+class _StreamingResult:
+    """What the asynchronous client hands back, kept so both shapes are covered."""
+
+    def __init__(self, data: bytes) -> None:
+        self.status_code = 200
         self.stream = iter([data[:10], data[10:]])
 
 
@@ -175,6 +191,44 @@ def test_counting_only_sees_shares(store: BlobShareStore, client: FakeBlobClient
     client.objects["something/else.json"] = b"{}"
 
     assert store.count() == 2
+
+
+def test_both_client_shapes_can_be_read():
+    """The two shapes are not interchangeable and only one is well documented."""
+
+    from app.share import _read_all
+
+    assert _read_all(_Result(b'{"hello":"world"}')) == '{"hello":"world"}'
+    assert _read_all(_StreamingResult(b'{"hello":"world"}')) == '{"hello":"world"}'
+
+
+def test_a_body_under_no_known_name_says_so_loudly():
+    """The failure that cost a deployment. The message now names the problem."""
+
+    from app.share import _read_all
+
+    class Mystery:
+        status_code = 200
+
+    with pytest.raises(ValueError, match="content.*stream|stream.*content"):
+        _read_all(Mystery())
+
+
+def test_the_fake_matches_the_real_result_type():
+    """Guards the fake itself, which is the thing that was wrong last time.
+
+    A fake that has drifted from the real type tests nothing but itself. Skipped
+    rather than failed where the SDK is not installed, since the suite has to
+    keep running without it.
+    """
+
+    sdk = pytest.importorskip("vercel.blob")
+    fields = getattr(sdk.GetBlobResult, "__annotations__", {})
+
+    assert "content" in fields, (
+        "the SDK's result no longer carries 'content'; the fake and the store "
+        f"both need revisiting. It now has: {sorted(fields)}"
+    )
 
 
 def test_a_record_round_trips_through_its_encoding():
