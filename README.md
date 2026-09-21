@@ -227,8 +227,22 @@ somebody's business actually runs:
 The interface says plainly that the link is readable by anyone holding it, and warns
 against sharing one containing customer names. Unlisted is not the same as private.
 
-SQLite, because this is a handful of small rows and a database server would cost more
-than it is worth.
+Two stores sit behind one interface, because the right answer changes with where it
+runs. On a machine with a disk it is SQLite: boring, no configuration, no account,
+and a handful of small rows does not justify a database server. Deployed, there is no
+disk that survives a request, so the same interface is served by blob storage
+instead. `open_store()` picks from the environment and nothing above it knows which
+it got.
+
+Both go through one function that builds the record, so the id length, the expiry and
+the size cap cannot drift apart between them. Those three are the security
+properties, and an implementation quietly enforcing its own version of them is how a
+rule becomes a suggestion.
+
+The alternative was putting the whole analysis inside the link, which needs no
+storage at all. Measured before choosing: an analysis compresses to about 2,200
+characters, and the only remaining thing big enough to cut is the explanation text,
+which is the product. A tidy link won.
 
 ## Exporting it
 
@@ -369,7 +383,7 @@ cd backend
 .venv/Scripts/python -m pytest
 ```
 
-126 tests, none of which call an API. The model is substituted with a scripted
+144 tests, none of which call an API. The model is substituted with a scripted
 stand-in that returns deliberately broken output, so the repair loop can be tested
 precisely and for free.
 
@@ -436,10 +450,38 @@ Working: the two-stage pipeline, validation, repair, record/replay, a web front 
 with the process rendered as a diagram, the time arithmetic, shareable links, export
 to n8n, and a scored eval suite with committed baselines.
 
-Next: a hosted demo, so it can be tried without cloning anything.
+Next: the hosted demo needs its first deploy, then a link at the top of this file.
 
-One deployment note: shared links are client-side routes, so static hosting needs a
-rewrite sending `/s/*` to `index.html`. The Vite dev server does this already.
+## Deploying it
+
+One Vercel project serves both halves. The API is the same FastAPI app, and the built
+front end is served from it, so there is no second deployment to keep in step and no
+cross-origin anything.
+
+```bash
+npm i -g vercel
+vercel        # first run links the project
+vercel --prod
+```
+
+Three things to know.
+
+**`/s/abc123` is a route the browser understands and the server has never heard of.**
+Opening a shared link directly would 404 without a fallback, which is the failure
+nobody catches in development because the dev server handles it silently. The app
+serves `index.html` for unmatched paths, and API routes take priority regardless of
+declaration order.
+
+**Shared links need blob storage attached**, because serverless has no disk that
+survives a request. Add one in the Vercel dashboard under Storage, and it injects
+`BLOB_READ_WRITE_TOKEN`, which is what `open_store()` looks for. Without it the app
+still runs and still analyses; only sharing is unavailable. 1GB covers roughly
+140,000 shares, which is comfortably inside the free allowance.
+
+**A model key is optional and deliberately left off the public demo.** Without
+`GEMINI_API_KEY` the recorded examples work exactly as they do locally, and a typed
+description gets a plain message saying so. A public box wired to a metered key is a
+quota someone else gets to spend.
 
 Built with Python, Pydantic and Gemini on the back end, React and React Flow on the
 front. British English throughout, and the example

@@ -10,7 +10,9 @@ the tool does, and burying it would be a waste.
 
 from __future__ import annotations
 
+import os
 from datetime import datetime
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,7 +26,7 @@ from app.llm.gemini import GeminiClient
 from app.llm.record import RecordingLLM, ReplayLLM, available_cases
 from app.schemas.assessment import AutomationPlan
 from app.schemas.effort import EffortInput, EffortSummary, summarise_effort
-from app.share import ShareStore, ShareTooLarge
+from app.share import ShareTooLarge, open_store
 from app.schemas.process import ProcessGraph
 
 EXAMPLES = [
@@ -51,7 +53,19 @@ EXAMPLES = [
     },
 ]
 
-store = ShareStore()
+# SQLite locally, blob storage when deployed. See app/share.py.
+store = open_store()
+
+
+def _model_key_configured() -> bool:
+    """Whether this deployment can talk to a model at all.
+
+    The public demo runs without a key on purpose, so the recorded examples
+    cost nothing and cannot be used to burn somebody's quota.
+    """
+
+    return bool(os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"))
+
 
 app = FastAPI(
     title="AI Automation Architect",
@@ -112,9 +126,23 @@ def examples() -> dict:
 @app.post("/api/analyse", response_model=AnalyseResponse)
 def analyse(request: AnalyseRequest) -> AnalyseResponse:
     try:
-        llm: StructuredLLM = (
-            ReplayLLM(request.case) if request.case else RecordingLLM(GeminiClient())
-        )
+        if request.case:
+            llm: StructuredLLM = ReplayLLM(request.case)
+        elif not _model_key_configured():
+            # Deployed without a key, which is the normal state of the public
+            # demo. Telling a visitor to set an environment variable on their
+            # own machine is advice for a problem they do not have.
+            return AnalyseResponse(
+                ok=False,
+                model="none",
+                error=(
+                    "This demo has no model key attached, so it can only run the "
+                    "recorded examples. Pick one above to see the whole thing "
+                    "work, or run the project yourself with your own free key."
+                ),
+            )
+        else:
+            llm = RecordingLLM(GeminiClient())
     except LLMError as exc:
         return AnalyseResponse(ok=False, model="none", error=str(exc))
 
@@ -256,3 +284,18 @@ def read_share(share_id: str) -> SharedAnalysis:
         expires_at=record.expires_at,
         **record.payload,
     )
+
+
+# --- The built front end ------------------------------------------------------
+
+# Where `npm run build` puts the front end. Present when deployed, absent in
+# development, where Vite serves it on its own port and proxies /api back here.
+BUILT_FRONTEND = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+
+if BUILT_FRONTEND.is_dir():
+    # fallback="index.html" is what makes a shared link work. /s/abc123 is a
+    # route the browser understands and the server has never heard of, so
+    # without this, opening one directly returns a 404 rather than the page
+    # that knows how to load it. Registered last, and API routes win regardless
+    # of order, so nothing here can shadow /api.
+    app.frontend("/", directory=str(BUILT_FRONTEND), fallback="index.html")

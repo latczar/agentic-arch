@@ -1,0 +1,3 @@
+[tool.vercel]
+# The app is re-exported from index.py at the root. See the note in that file.
+entrypoint = "index:app"
