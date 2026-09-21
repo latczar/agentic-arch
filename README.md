@@ -335,6 +335,11 @@ Every real call is saved. Two curated cases live in `backend/recordings/`, so
 `--replay` reproduces either example above with no network and no API key. The tests
 use the same idea with a scripted stand-in.
 
+**A scored eval suite, with the failures left in.**
+[`backend/evals/`](backend/evals/) grades properties rather than exact output, tests
+both directions of the risk detector, and keeps three known gaps visible instead of
+quietly deleting them. See [Measuring it](#measuring-it).
+
 ## Try it
 
 No API key needed. Two recorded cases ship with the repo:
@@ -364,17 +369,69 @@ cd backend
 .venv/Scripts/python -m pytest
 ```
 
-92 tests, none of which call an API. The model is substituted with a scripted
+114 tests, none of which call an API. The model is substituted with a scripted
 stand-in that returns deliberately broken output, so the repair loop can be tested
 precisely and for free.
+
+## Measuring it
+
+Tests answer whether the code does what it was told. They cannot answer whether the
+judgement is any good, and that is the half that degrades quietly. So there is a
+separate scored suite:
+
+```bash
+cd backend
+.venv/Scripts/python scripts/eval.py          # the safety net, free and instant
+.venv/Scripts/python scripts/eval.py replay   # the pipeline, recorded answers
+.venv/Scripts/python scripts/eval.py live     # the pipeline, real model
+```
+
+It exits non-zero on a failure or a regression against the committed baseline, so it
+can sit in a build.
+
+Nothing in it matches exact output. Two good answers never match word for word, and a
+suite built that way fails whenever somebody rephrases anything, which teaches you
+nothing and gets switched off. Every check asserts a property instead: *the step that
+deletes something did not come back safe to run unattended*, which holds however the
+model worded it.
+
+The three modes measure different things, and the difference is worth being straight
+about. `guards` runs our own risk detection with no model involved, so it is free and
+identical every time. `replay` runs the whole pipeline against saved responses, which
+catches the day a schema change stops us reading an answer that used to be fine, but
+**cannot tell you a prompt improved**, because the saved answer came from the old
+prompt. Only `live` can do that.
+
+Two things worth noting in the current score:
+
+**It tests both directions.** A risk detector that flags everything catches every
+real risk and is worthless, so half the cases are harmless steps that must stay
+quiet. "Mark the payment as received" and "Log the payment reference" are as much
+the point as "Pay the contractor invoice".
+
+**Failures are written down rather than deleted.** Three cases fail today. Writing
+off a balance, issuing a credit note and releasing a deposit are all money moving,
+and none of them contains a word we can match on without lighting up half a normal
+finance process. They are marked as known gaps: still reported, still scored, but
+they do not break the build, and if one ever starts passing the run says so. Deleting
+the failing case is the easiest way to make a score go up, so the harness also treats
+a case that disappears from the baseline as a regression.
+
+Building this found a real hole. `legal_or_compliance` was one of the three risks in
+the never-fully-automatic rule and had no code behind it at all, exactly the
+arrangement that let "delete the email" through. Signing an agreement, serving notice
+and terminating a tenancy are now caught in
+[`assessment.py`](backend/app/schemas/assessment.py), on the leading verb only, so
+filing a signed agreement stays clerical.
 
 ## Status
 
 Working: the two-stage pipeline, validation, repair, record/replay, a web front end
-with the process rendered as a diagram, the time arithmetic, shareable links, and
-export to n8n.
+with the process rendered as a diagram, the time arithmetic, shareable links, export
+to n8n, and a scored eval suite with committed baselines.
 
-Next: an eval set, so a prompt change can be measured rather than guessed at.
+Next: closing the three known gaps in risk detection, which needs phrase matching
+rather than single words.
 
 One deployment note: shared links are client-side routes, so static hosting needs a
 rewrite sending `/s/*` to `index.html`. The Vite dev server does this already.

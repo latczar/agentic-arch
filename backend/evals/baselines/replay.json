@@ -1,0 +1,17 @@
+{
+  "mode": "replay",
+  "recorded_at": "2026-09-21T07:15:12+00:00",
+  "score": 1.0,
+  "passed": 12,
+  "total": 12,
+  "cases": {
+    "invoice-with-approval": {
+      "passed": 5,
+      "total": 5
+    },
+    "payment-no-approval": {
+      "passed": 7,
+      "total": 7
+    }
+  }
+}

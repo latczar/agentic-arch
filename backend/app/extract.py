@@ -6,8 +6,8 @@ This is where the model and the checker meet. The shape is:
 
 Two things are worth knowing about the prompt below. First, it teaches the model
 the same rules the validator enforces. Every rule we state here is a repair we
-do not have to pay for later. Second, it does not try to be clever -- there are
-no few-shot examples yet, because we have not yet seen which mistakes the model
+do not have to pay for later. Second, it does not try to be clever. There
+are no few-shot examples yet, because we have not yet seen which mistakes the model
 actually makes. Adding examples before you have evidence is guessing.
 """
 
@@ -104,9 +104,9 @@ def extract_process(
         except (ValidationError, ValueError) as exc:
             attempt.errors = _readable_errors(exc)
 
-            # Identical complaints twice running means the repair is not landing
-            # -- either the message is not actionable or the model cannot see a
-            # way out. Asking a third time costs quota and changes nothing.
+            # Identical complaints twice running means the repair is not
+            # landing. Either the message is not actionable or the model cannot
+            # see a way out. Asking again costs quota and changes nothing.
             if attempt.errors == previous_errors:
                 break
 

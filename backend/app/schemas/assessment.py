@@ -122,6 +122,25 @@ OUTSIDE_WORDS = frozenset(
 )
 
 
+# Three risks are in the never-fully-automatic rule and only two of them had any
+# code behind them. Legal weight was left entirely to the model, which is exactly
+# the arrangement that let "delete the email" through, so it gets the same
+# treatment as the other two.
+#
+# On the leading verb only. Signing an agreement is an action with consequences;
+# reading a signed one is not, and a rule that cannot tell them apart would put
+# an amber light on half a lettings process.
+LEGAL_VERBS = frozenset(
+    {
+        "sign", "signs", "signing", "signed",
+        "countersign", "countersigns", "countersigning", "countersigned",
+        "terminate", "terminates", "terminating", "terminated",
+        "evict", "evicts", "evicting", "evicted",
+        "serve", "serves", "serving", "served",
+    }
+)
+
+
 def mandatory_risks(name: str, description: str = "", kind: str | None = None) -> set[RiskFlag]:
     """Risks the step carries by virtue of what it does, whatever the model said.
 
@@ -153,6 +172,10 @@ def mandatory_risks(name: str, description: str = "", kind: str | None = None) -
     sending = kind == "notify" or lead in SENDING_WORDS
     if sending and words & OUTSIDE_WORDS:
         found.add(RiskFlag.EXTERNAL_COMMS)
+
+    # Binding somebody to something, or ending it. Same leading-verb test.
+    if lead in LEGAL_VERBS:
+        found.add(RiskFlag.LEGAL_OR_COMPLIANCE)
 
     return found
 

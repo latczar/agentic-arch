@@ -1,0 +1,101 @@
+{
+  "mode": "guards",
+  "recorded_at": "2026-09-21T07:15:11+00:00",
+  "score": 0.8696,
+  "passed": 20,
+  "total": 23,
+  "cases": {
+    "deletes-an-email": {
+      "passed": 1,
+      "total": 1
+    },
+    "pays-a-contractor": {
+      "passed": 1,
+      "total": 1
+    },
+    "refunds-a-deposit": {
+      "passed": 1,
+      "total": 1
+    },
+    "cancels-a-standing-order": {
+      "passed": 1,
+      "total": 1
+    },
+    "purges-old-records": {
+      "passed": 1,
+      "total": 1
+    },
+    "emails-a-vendor": {
+      "passed": 1,
+      "total": 1
+    },
+    "tells-an-applicant": {
+      "passed": 1,
+      "total": 1
+    },
+    "transfers-rent": {
+      "passed": 1,
+      "total": 1
+    },
+    "signs-an-agreement": {
+      "passed": 1,
+      "total": 1
+    },
+    "serves-notice": {
+      "passed": 1,
+      "total": 1
+    },
+    "terminates-a-tenancy": {
+      "passed": 1,
+      "total": 1
+    },
+    "writes-off-a-balance": {
+      "passed": 0,
+      "total": 1
+    },
+    "issues-a-credit-note": {
+      "passed": 0,
+      "total": 1
+    },
+    "releases-a-deposit": {
+      "passed": 0,
+      "total": 1
+    },
+    "marks-a-record-as-deleted": {
+      "passed": 1,
+      "total": 1
+    },
+    "marks-a-payment-received": {
+      "passed": 1,
+      "total": 1
+    },
+    "logs-a-payment-reference": {
+      "passed": 1,
+      "total": 1
+    },
+    "records-a-refund": {
+      "passed": 1,
+      "total": 1
+    },
+    "copies-a-transfer-total": {
+      "passed": 1,
+      "total": 1
+    },
+    "updates-a-charge-amount": {
+      "passed": 1,
+      "total": 1
+    },
+    "reads-a-supplier-email": {
+      "passed": 1,
+      "total": 1
+    },
+    "messages-the-team": {
+      "passed": 1,
+      "total": 1
+    },
+    "reads-a-signed-agreement": {
+      "passed": 1,
+      "total": 1
+    }
+  }
+}

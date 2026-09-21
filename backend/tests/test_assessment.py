@@ -238,5 +238,21 @@ def test_an_internal_message_is_not_external_communication():
     assert RiskFlag.EXTERNAL_COMMS not in risks
 
 
+def test_signing_something_carries_legal_weight():
+    risks = mandatory_risks("Sign the tenancy agreement on our behalf", "", "write")
+    assert RiskFlag.LEGAL_OR_COMPLIANCE in risks
+
+
+def test_serving_notice_carries_legal_weight():
+    assert RiskFlag.LEGAL_OR_COMPLIANCE in mandatory_risks("Serve notice on the tenant")
+
+
+def test_filing_a_signed_agreement_does_not():
+    """The word is there and the action is clerical. Same rule as 'mark as paid'."""
+
+    risks = mandatory_risks("Check the signed tenancy agreement is on file", "", "read")
+    assert RiskFlag.LEGAL_OR_COMPLIANCE not in risks
+
+
 def test_harmless_work_is_left_alone():
     assert mandatory_risks("Read the invoice total", "Take the amount off the PDF.") == set()

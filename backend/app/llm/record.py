@@ -8,7 +8,7 @@ Why it matters here: the free tier is metered per day. Re-running the same
 description to work on the printing code is a waste of a scarce resource, and it
 makes development slower and less predictable. Record once, replay for free.
 
-The same trick is standard practice well beyond free tiers -- it is how you get
+The same trick is standard practice well beyond free tiers. It is how you get
 tests that do not cost money, do not need the network, and give the same answer
 every time.
 """
@@ -72,7 +72,7 @@ class ReplayLLM:
     """Returns previously recorded responses, in the order they were recorded.
 
     Deliberately does not try to match a prompt to a recording. Matching sounds
-    cleverer but goes wrong quietly -- a near-miss silently replays the wrong
+    cleverer but goes wrong quietly. A near miss silently replays the wrong
     answer. In order, and loudly when it runs out, is easier to trust.
     """
 

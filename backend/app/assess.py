@@ -1,6 +1,6 @@
 """Stage two: judge a process graph and produce an automation plan.
 
-Same shape as extract.py -- ask, validate, hand back the objections, retry.
+Same shape as extract.py: ask, validate, hand back the objections, retry.
 The difference is that validation here is two-sided: the plan has to be
 internally consistent (assessment.py's own rules) AND consistent with the graph
 it claims to describe (validate_plan).
@@ -148,7 +148,7 @@ def assess_process(
             attempt.errors = _readable_errors(exc)
         else:
             # The plan parsed and is internally consistent. It still has to match
-            # the process it is about -- every step assessed, nothing invented.
+            # the process it is about: every step assessed, nothing invented.
             attempt.errors = validate_plan(plan, graph)
             if not attempt.errors:
                 return AssessmentResult(plan=plan, attempts=attempts, model=llm.name)

@@ -5,7 +5,7 @@ raw JSON text. That is all we need, and keeping it that small is the point: the
 provider stops being a decision we are married to. Swapping Gemini for another
 provider, or adding a second to compare them, is one new file implementing this.
 
-Providers change their SDKs often -- the Gemini one changed shape between our
+Providers change their SDKs often. The Gemini one changed shape between our
 training assumptions and today. A seam this narrow means that churn touches one
 file instead of the whole codebase.
 """
@@ -29,7 +29,7 @@ class StructuredLLM(Protocol):
         """Return raw JSON text conforming to `schema`.
 
         Returns text rather than a parsed object on purpose. Parsing and
-        validation are our job, not the provider's -- we want the raw response
+        validation are our job, not the provider's. We want the raw response
         available when something goes wrong, so it can be logged and shown back
         to the model in a repair attempt.
         """

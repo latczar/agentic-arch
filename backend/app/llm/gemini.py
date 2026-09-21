@@ -1,7 +1,7 @@
 """Gemini implementation of the StructuredLLM seam.
 
 Chosen because its free tier is the most usable one for schema-constrained
-output. Nothing else in the codebase imports google.genai -- if that stops being
+output. Nothing else in the codebase imports google.genai. If that stops being
 true, the seam has leaked.
 """
 
@@ -15,8 +15,8 @@ from app.llm.base import LLMError
 
 # Flash-Lite rather than the newest Flash, for one reason: quota. The free tier
 # allows roughly 20 requests a day on gemini-3.8-flash and several hundred on
-# the Lite models. Extraction is mechanical work -- reading a description and
-# filling in a form -- so a smaller model is a fair trade for being able to
+# the Lite models. Extraction is mechanical work, reading a description and
+# filling in a form, so a smaller model is a fair trade for being able to
 # actually run it. The judgement stage is where a stronger model earns its keep.
 # Picking a different model per stage is called model routing, and it is usually
 # the largest cost lever in an LLM application.
@@ -106,7 +106,7 @@ def _is_transient(exc: Exception) -> bool:
     Not every 429 is alike, and the difference costs real quota. A per-minute
     burst limit clears in a minute, so waiting is right. A daily quota does not
     clear today, and on a metered tier each doomed retry can count against the
-    allowance that has already run out -- so we stop immediately and say so.
+    allowance that has already run out, so we stop immediately and say so.
     """
 
     text = str(exc).lower()

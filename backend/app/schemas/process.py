@@ -1,6 +1,6 @@
 """The as-is process graph: what the person currently does, before any judgement.
 
-This is stage one of two. Nothing here decides what should be automated -- that
+This is stage one of two. Nothing here decides what should be automated. That
 lives in assessment.py. Keeping description and judgement apart means each model
 call has exactly one job, and it means we can validate the graph is structurally
 sound before spending anything assessing it.
@@ -161,7 +161,7 @@ def validate_graph(graph: ProcessGraph) -> list[str]:
 
     Deliberately returns a list rather than raising on the first problem. When a
     model produces a bad graph we want to hand back everything that is wrong in
-    one go -- a repair loop that fixes one fault per round trip is slow, and it
+    one go. A repair loop that fixes one fault per round trip is slow, and it
     tends to oscillate between two faults it keeps reintroducing.
     """
 
