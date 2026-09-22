@@ -334,7 +334,11 @@ export default function App() {
       )}
 
       <footer className="footer">
-        {result && <span>Answered by {result.model}. </span>}
+        {/* "none" is the placeholder on a response that never reached a model,
+            and "Answered by none" is a sentence no reader should be shown. */}
+        {result && result.model !== "none" && (
+          <span>Answered by {result.model}. </span>
+        )}
         <a href="https://github.com/latczar/agentic-arch">Source on GitHub</a>
       </footer>
     </div>
