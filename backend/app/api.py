@@ -14,7 +14,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -23,9 +23,11 @@ from app.export_n8n import to_n8n
 from app.extract import extract_process
 from app.llm.base import LLMError, StructuredLLM
 from app.llm.gemini import GeminiClient
+from app.limits import address_of, budget_salt, open_budget, visitor_id
 from app.llm.record import RecordingLLM, ReplayLLM, available_cases
 from app.schemas.assessment import AutomationPlan
 from app.schemas.effort import EffortInput, EffortSummary, summarise_effort
+from app.shape import NUDGE, looks_like_a_request
 from app.share import ShareTooLarge, open_store
 from app.schemas.process import ProcessGraph
 
@@ -55,6 +57,11 @@ EXAMPLES = [
 
 # SQLite locally, blob storage when deployed. See app/share.py.
 store = open_store()
+
+# The public demo runs on one shared key, so model calls come out of a daily
+# budget. See app/limits.py.
+budget = open_budget()
+SALT = budget_salt()
 
 
 def _model_key_configured() -> bool:
@@ -124,10 +131,14 @@ def examples() -> dict:
 
 
 @app.post("/api/analyse", response_model=AnalyseResponse)
-def analyse(request: AnalyseRequest) -> AnalyseResponse:
+def analyse(request: AnalyseRequest, http: Request) -> AnalyseResponse:
     try:
         if request.case:
             llm: StructuredLLM = ReplayLLM(request.case)
+        elif looks_like_a_request(request.description):
+            # Caught before the model, not after. An answer to the wrong
+            # question costs two calls and tells the person nothing.
+            return AnalyseResponse(ok=False, model="none", error=NUDGE)
         elif not _model_key_configured():
             # Deployed without a key, which is the normal state of the public
             # demo. Telling a visitor to set an environment variable on their
@@ -142,6 +153,12 @@ def analyse(request: AnalyseRequest) -> AnalyseResponse:
                 ),
             )
         else:
+            # A real call against a shared key, so it comes out of the day's
+            # budget. Checked before the client is built, so a refusal costs
+            # nothing.
+            allowance = budget.spend(visitor_id(address_of(http), SALT))
+            if not allowance.allowed:
+                return AnalyseResponse(ok=False, model="none", error=allowance.reason)
             llm = RecordingLLM(GeminiClient())
     except LLMError as exc:
         return AnalyseResponse(ok=False, model="none", error=str(exc))
