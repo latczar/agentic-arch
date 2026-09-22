@@ -68,7 +68,7 @@ def _model_key_configured() -> bool:
 
 
 app = FastAPI(
-    title="AI Automation Architect",
+    title="Automation Architect",
     description="Turns a plain-English process description into a validated automation plan.",
 )
 

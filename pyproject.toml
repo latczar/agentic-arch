@@ -1,5 +1,5 @@
 [project]
-name = "ai-automation-architect"
+name = "automation-architect"
 version = "0.1.0"
 description = "Turns a plain-English process description into a validated automation plan."
 requires-python = ">=3.11"

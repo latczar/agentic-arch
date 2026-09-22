@@ -1,4 +1,4 @@
-# AI Automation Architect
+# Automation Architect
 
 **Describe repetitive work in plain English. Get back a validated automation architecture.**
 

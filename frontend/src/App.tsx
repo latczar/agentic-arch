@@ -155,7 +155,7 @@ export default function App() {
   return (
     <div className="page">
       <header className="masthead">
-        <h1>AI Automation Architect</h1>
+        <h1>Automation Architect</h1>
         <p>
           Describe something repetitive you do by hand. See which parts a computer
           could take over, and where it should stop and ask you first.
@@ -339,7 +339,7 @@ export default function App() {
         {result && result.model !== "none" && (
           <span>Answered by {result.model}. </span>
         )}
-        <a href="https://github.com/latczar/agentic-arch">Source on GitHub</a>
+        <a href="https://github.com/latczar/automation-architect">Source on GitHub</a>
       </footer>
     </div>
   );
