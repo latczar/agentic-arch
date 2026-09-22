@@ -20,5 +20,38 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+
+    <!--
+      A deploy replaces the bundle and deletes the old one, so a tab that was
+      already open asks for a file that is no longer there, gets a 404, and
+      renders nothing at all. No error on screen, no console message, just
+      white. It looks like the site is broken rather than a page old by one
+      release.
+
+      Nothing here can stop that 404. What it can do is make sure a blank page
+      is never what somebody is left looking at. If the app has not mounted
+      after a few seconds, say so in plain words and offer the one thing that
+      actually fixes it.
+
+      Deliberately inline and dependency free: this has to work precisely when
+      the JavaScript did not.
+    -->
+    <script>
+      setTimeout(function () {
+        var root = document.getElementById("root");
+        if (!root || root.childElementCount > 0) return;
+
+        root.innerHTML =
+          '<div style="max-width:32rem;margin:18vh auto;padding:0 16px;' +
+          'font:16px/1.55 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif">' +
+          '<h1 style="font-size:1.35rem;margin:0 0 10px;letter-spacing:-0.02em">' +
+          "This page did not finish loading</h1>" +
+          '<p style="margin:0 0 18px;color:#6b6559">Usually it means a new version was ' +
+          "published while this tab was open. Reloading picks it up.</p>" +
+          '<button onclick="location.reload(true)" style="font:inherit;font-weight:500;' +
+          "cursor:pointer;border-radius:8px;border:1px solid #2f5d50;background:#2f5d50;" +
+          'color:#fff;padding:9px 18px">Reload the page</button></div>';
+      }, 6000);
+    </script>
   </body>
 </html>
