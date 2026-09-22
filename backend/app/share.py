@@ -37,6 +37,25 @@ from pydantic import BaseModel
 
 log = logging.getLogger(__name__)
 
+
+def _missing_blob_errors() -> tuple[type[BaseException], ...]:
+    """Exceptions meaning "no such object" rather than "something broke".
+
+    The client raises for a missing object rather than returning nothing, so
+    without this an ordinary dead link is indistinguishable from a store having
+    a bad day, and both arrive in the log as a stack trace.
+    """
+
+    try:
+        from vercel.blob import BlobNotFoundError
+
+        return (BlobNotFoundError,)
+    except ImportError:  # pragma: no cover - only when deployed
+        return ()
+
+
+MISSING = _missing_blob_errors()
+
 DEFAULT_DB = Path(__file__).resolve().parents[1] / "shares.db"
 
 # Long enough that guessing one is hopeless: 12 url-safe characters is about 71
@@ -239,6 +258,11 @@ class BlobShareStore:
 
         try:
             result = self._client.get(self._path(share_id), access="private")
+        except MISSING:
+            # A link that does not exist, which is the ordinary case for a typo
+            # or an expired share. Not worth a stack trace in the log.
+            log.info("no blob for share %s", share_id)
+            return None
         except Exception:
             # A missing object and a store having a bad day look the same to a
             # reader, and both mean "that link does not work". They are not the

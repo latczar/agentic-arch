@@ -31,6 +31,29 @@ from datetime import date, datetime, timezone
 
 log = logging.getLogger(__name__)
 
+
+def _missing_blob_errors() -> tuple[type[BaseException], ...]:
+    """The exceptions that mean "no such object" rather than "something broke".
+
+    The client raises for a missing object rather than returning nothing, which
+    matters here more than it looks: the first request of any day reads a tally
+    that does not exist yet. Treating that as a failure made the budget fail
+    closed every morning, correctly and for entirely the wrong reason.
+
+    Resolved at import and tolerant of the package being absent, so the tests
+    and local development do not need it installed.
+    """
+
+    try:
+        from vercel.blob import BlobNotFoundError
+
+        return (BlobNotFoundError,)
+    except ImportError:  # pragma: no cover - only when deployed
+        return ()
+
+
+MISSING = _missing_blob_errors()
+
 # Flash-Lite's free tier allows several hundred requests a day and one analysis
 # spends two. This leaves room for the key to be used elsewhere.
 DAILY_TOTAL = 120
@@ -130,9 +153,13 @@ class BlobBudget:
     def _load(self) -> dict:
         try:
             result = self._client.get(self._path(), access="private")
+        except MISSING:
+            # No tally yet, which is simply the first request of the day. Not a
+            # failure, and emphatically not a reason to stop serving.
+            return {"used": 0, "visitors": {}}
         except Exception:
-            # Cannot read the tally. Covered in spend(): a budget that cannot be
-            # read must not become a budget that is not enforced.
+            # Anything else is a real fault. Covered in spend(): a budget that
+            # cannot be read must not become a budget that is not enforced.
             log.warning("usage tally unreadable", exc_info=True)
             raise
 

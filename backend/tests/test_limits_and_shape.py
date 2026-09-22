@@ -24,7 +24,20 @@ class FakeRequest:
         self.client = type("C", (), {"host": host})()
 
 
+# The real exception, not a stand-in. The SDK is a declared dependency, and the
+# last bug here came from a fake that had drifted from the thing it stood in
+# for, so where the genuine article is available it gets used.
+from vercel.blob import BlobNotFoundError as NotFound  # noqa: E402
+
+
 class FakeBlob:
+    """Raises for a missing object, which is what the real client does.
+
+    Worth stating plainly, because assuming it returned nothing is what broke
+    the budget on its first real request: the tally for a new day does not exist
+    yet, the read raised, and the whole thing failed closed every morning.
+    """
+
     def __init__(self):
         self.objects: dict[str, bytes] = {}
         self.fail_reads = False
@@ -34,7 +47,7 @@ class FakeBlob:
         if self.fail_reads:
             raise RuntimeError("blob store unavailable")
         if pathname not in self.objects:
-            return None
+            raise NotFound()
         return type("R", (), {"status_code": 200, "content": self.objects[pathname]})()
 
     def put(self, pathname, body, **kw):
@@ -116,6 +129,31 @@ def test_the_day_has_a_ceiling_whoever_is_asking(budget):
     refused = budget.spend("visitor4")
     assert not refused.allowed
     assert "allowance for today" in refused.reason
+
+
+def test_the_first_request_of_the_day_is_allowed():
+    """No tally exists yet, and that is not a failure.
+
+    The bug this pins: a missing object raises rather than returning nothing, so
+    every morning's first request looked like the store was broken and the
+    budget refused. Correct behaviour for the wrong reason is still a fault.
+    """
+
+    budget = BlobBudget(client=FakeBlob(), total=10, per_visitor=5)
+
+    allowance = budget.spend("alice")
+    assert allowance.allowed, allowance.reason
+
+
+def test_a_missing_tally_is_not_confused_with_a_broken_store():
+    """The two look identical from here and must not be treated the same."""
+
+    blob = FakeBlob()
+    budget = BlobBudget(client=blob, total=10, per_visitor=5)
+
+    assert budget.spend("alice").allowed  # missing: allowed
+    blob.fail_reads = True
+    assert not budget.spend("bob").allowed  # broken: refused
 
 
 def test_an_unreadable_tally_fails_closed():
