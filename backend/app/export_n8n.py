@@ -23,6 +23,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from app.n8n_catalogue import NodeChoice, choose_node
 from app.schemas.assessment import AutomationPlan, ControlKind, StepAssessment
 from app.schemas.common import ComparisonOperator, DataType
 from app.schemas.process import ProcessGraph, Step, StepKind, TriggerKind
@@ -166,7 +167,7 @@ def to_n8n(graph: ProcessGraph, plan: AutomationPlan | None = None) -> dict:
 
     for step in graph.steps:
         assessment = assessments.get(step.id)
-        entry, exit_ = _build_step(builder, step, assessment)
+        entry, exit_ = _build_step(builder, step, assessment, graph)
         entry_of[step.id] = entry
         exit_of[step.id] = exit_
 
@@ -195,7 +196,7 @@ def to_n8n(graph: ProcessGraph, plan: AutomationPlan | None = None) -> dict:
 
 
 def _build_step(
-    builder: _Builder, step: Step, assessment: StepAssessment | None
+    builder: _Builder, step: Step, assessment: StepAssessment | None, graph: ProcessGraph
 ) -> tuple[str, str]:
     """Return (entry node, exit node) for one step, inserting any approval gate."""
 
@@ -246,10 +247,17 @@ def _build_step(
             outputs=2,
         )
     else:
+        # A real node where the description named a system we recognise, a
+        # placeholder otherwise. See n8n_catalogue for why that line is drawn
+        # from what the person said rather than from what the model suggested.
+        capability = assessment.tool.capability if assessment and assessment.tool else None
+        choice = choose_node(step, graph, capability)
+
         body = builder.add(
             _shorten(step.name),
-            NO_OP,
-            notes=_step_notes(step, assessment),
+            choice.type if choice else NO_OP,
+            notes=_step_notes(step, assessment, choice),
+            type_version=choice.version if choice else 1,
         )
 
     if gate_entry and gate_exit:
@@ -283,7 +291,9 @@ def _trigger_notes(graph: ProcessGraph) -> str:
     return note
 
 
-def _step_notes(step: Step, assessment: StepAssessment | None) -> str:
+def _step_notes(
+    step: Step, assessment: StepAssessment | None, choice: NodeChoice | None = None
+) -> str:
     lines = [step.description]
 
     if step.iterates_over:

@@ -2,9 +2,10 @@ import { useCallback, useEffect, useState } from "react";
 
 import {
   analyse,
+  buildWorkflow,
+  copyToClipboard,
   createShare,
   download,
-  exportN8n,
   fetchExamples,
   fetchShare,
   shareIdFromUrl,
@@ -28,6 +29,8 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  // "copied" or "downloaded", so the message can say what actually happened.
+  const [handoff, setHandoff] = useState<"copied" | "downloaded" | null>(null);
 
   const [effortInput, setEffortInput] = useState<EffortInput | null>(null);
   const [shared, setShared] = useState<SharedAnalysis | null>(null);
@@ -85,13 +88,37 @@ export default function App() {
     if (!result?.graph) return;
     setExporting(true);
     try {
-      const blob = await exportN8n(result.graph, result.plan);
-      const name = result.graph.title.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-      download(blob, `${name}.n8n.json`);
+      const workflow = await buildWorkflow(result.graph, result.plan);
+
+      // Straight to the clipboard, because n8n takes a paste onto its canvas
+      // and that skips the file, the downloads folder and the import dialog.
+      // If the browser refuses, fall back to the file rather than stopping.
+      if (await copyToClipboard(workflow)) {
+        setHandoff("copied");
+      } else {
+        // Some browsers refuse clipboard writes outright. Downloading instead
+        // is the right fallback, but doing it silently leaves somebody staring
+        // at a button that did nothing while a file lands in a folder they were
+        // not looking at.
+        const name = result.graph.title.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+        download(new Blob([workflow], { type: "application/json" }), `${name}.n8n.json`);
+        setHandoff("downloaded");
+      }
     } catch (exc) {
-      setError(exc instanceof Error ? exc.message : "Could not build the export.");
+      setError(exc instanceof Error ? exc.message : "Could not build the workflow.");
     } finally {
       setExporting(false);
+    }
+  }
+
+  async function downloadWorkflow() {
+    if (!result?.graph) return;
+    try {
+      const workflow = await buildWorkflow(result.graph, result.plan);
+      const name = result.graph.title.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+      download(new Blob([workflow], { type: "application/json" }), `${name}.n8n.json`);
+    } catch (exc) {
+      setError(exc instanceof Error ? exc.message : "Could not build the workflow.");
     }
   }
 
@@ -256,14 +283,38 @@ export default function App() {
                   className="secondary"
                   onClick={exportWorkflow}
                   disabled={exporting}
-                  title="An importable n8n workflow. Integration nodes are placeholders."
+                  title="Copies the workflow. Paste it onto an n8n canvas."
                 >
-                  {exporting ? "Building..." : "Export to n8n"}
+                  {exporting ? "Building..." : handoff === "copied" ? "Copied" : "Copy for n8n"}
                 </button>
               </div>
             </div>
 
             <p className="results__summary">{result.graph.summary}</p>
+
+            {handoff && (
+              <p className="handoff">
+                {handoff === "copied" ? (
+                  <>
+                    On your clipboard. Open n8n, click the empty canvas and press{" "}
+                    <kbd>Ctrl</kbd>+<kbd>V</kbd>.{" "}
+                  </>
+                ) : (
+                  <>
+                    Your browser would not let the page use the clipboard, so the
+                    workflow downloaded instead. In n8n, use Import from File.{" "}
+                  </>
+                )}
+                Steps where you named the system arrive as real nodes and still
+                need their credentials. The rest are placeholders saying what
+                belongs there.{" "}
+                {handoff === "copied" && (
+                  <button className="linkish" onClick={downloadWorkflow}>
+                    Download the file instead
+                  </button>
+                )}
+              </p>
+            )}
 
             {shareUrl && (
               <div className="sharebox">

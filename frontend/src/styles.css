@@ -744,3 +744,42 @@ button:disabled {
   color: var(--muted);
   line-height: 1.45;
 }
+
+/* Handing the workflow over --------------------------------------------- */
+
+.handoff {
+  margin: 12px 0 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--auto);
+  border-radius: 8px;
+  background: var(--auto-bg);
+  color: var(--text);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.handoff kbd {
+  font: inherit;
+  font-size: 0.8rem;
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 1px 5px;
+  background: var(--surface);
+}
+
+/* A button that has to read as part of the sentence it sits in. */
+.linkish {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.linkish:hover {
+  filter: none;
+  text-decoration: none;
+}

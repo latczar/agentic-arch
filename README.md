@@ -246,7 +246,7 @@ storage at all. Measured before choosing: an analysis compresses to about 2,200
 characters, and the only remaining thing big enough to cut is the explanation text,
 which is the product. A tidy link won.
 
-## Exporting it
+## Handing it over
 
 The **Export to n8n** button produces a workflow file that imports cleanly. It is a
 scaffold, not a running automation, and it says so on every node.
@@ -361,6 +361,16 @@ examples as the code and was wrong in the same direction. The fake now mirrors t
 real type, and a test reads the library's own annotations so the two drifting apart
 is itself a failure. A stand-in built from the same assumption as the code under
 test does not check the assumption.
+
+**Real nodes only where the person named the system.**
+The model works out what each step needs to do and suggests tools for it. Asked for
+tools it offers "Zapier file download" and "Make.com iterator", which are other
+people's products, so its suggestions are not used directly. Instead the capability
+it produces is mapped to node types checked against n8n's own documentation, and the
+strongest signal is the system the person named: "I type that into our Google Sheet"
+is not a guess. Where they said only "spreadsheet" it stays a placeholder, because
+Excel and Sheets are a real choice nobody has made. See
+[`n8n_catalogue.py`](backend/app/n8n_catalogue.py).
 
 **A scored eval suite, with the failures left in.**
 [`backend/evals/`](backend/evals/) grades properties rather than exact output, tests

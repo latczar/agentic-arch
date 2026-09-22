@@ -34,19 +34,36 @@ export async function analyse(
   return response.json();
 }
 
-export async function exportN8n(
+export async function buildWorkflow(
   graph: ProcessGraph,
   plan: AutomationPlan | null,
-): Promise<Blob> {
+): Promise<string> {
   const response = await fetch("/api/export/n8n", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ graph, plan }),
   });
-  if (!response.ok) throw new Error(`Could not build the export (${response.status}).`);
+  if (!response.ok) throw new Error(`Could not build the workflow (${response.status}).`);
 
-  const workflow = await response.json();
-  return new Blob([JSON.stringify(workflow, null, 2)], { type: "application/json" });
+  return JSON.stringify(await response.json(), null, 2);
+}
+
+/**
+ * Put the workflow on the clipboard, ready to paste onto an n8n canvas.
+ *
+ * n8n reads workflow JSON straight from a paste, so this skips the file, the
+ * download folder and the import dialog entirely. Two steps instead of five,
+ * and nothing left in Downloads afterwards.
+ */
+export async function copyToClipboard(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    // Refused, which happens without a secure context or a recent click. The
+    // caller falls back to the download rather than leaving somebody stuck.
+    return false;
+  }
 }
 
 export function download(blob: Blob, filename: string): void {
