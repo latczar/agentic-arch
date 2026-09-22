@@ -16,10 +16,13 @@ every time.
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 
 from app.llm.base import LLMError, StructuredLLM
+
+log = logging.getLogger(__name__)
 
 RECORDINGS = Path(__file__).resolve().parents[2] / "recordings"
 
@@ -46,25 +49,43 @@ class RecordingLLM:
         self.inner = inner
         self.name = f"recording({inner.name})"
         self.directory = directory or SCRATCH_DIR
-        self.directory.mkdir(parents=True, exist_ok=True)
+
+        # Keeping notes is not the job. Somewhere with a read-only disk, which
+        # is every serverless host, this used to raise before the model was ever
+        # called and turned a working request into a 500. Recording is a
+        # convenience; convenience does not get to fail the thing it assists.
+        try:
+            self.directory.mkdir(parents=True, exist_ok=True)
+            self.recording = True
+        except OSError:
+            log.info("cannot write to %s, passing calls through unrecorded", self.directory)
+            self.recording = False
 
     def generate_json(self, *, system: str, prompt: str, schema: dict) -> str:
         text = self.inner.generate_json(system=system, prompt=prompt, schema=schema)
+        if not self.recording:
+            return text
 
         stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-%f")
         path = self.directory / f"{stamp}.json"
-        path.write_text(
-            json.dumps(
-                {
-                    "model": self.inner.name,
-                    "recorded_at": datetime.now(timezone.utc).isoformat(),
-                    "prompt": prompt,
-                    "response": text,
-                },
-                indent=2,
-            ),
-            encoding="utf-8",
-        )
+        try:
+            path.write_text(
+                json.dumps(
+                    {
+                        "model": self.inner.name,
+                        "recorded_at": datetime.now(timezone.utc).isoformat(),
+                        "prompt": prompt,
+                        "response": text,
+                    },
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+        except OSError:
+            # The answer is in hand. Losing the copy of it is not worth losing
+            # the answer over.
+            log.warning("could not save a recording to %s", path, exc_info=True)
+
         return text
 
 

@@ -64,6 +64,17 @@ budget = open_budget()
 SALT = budget_salt()
 
 
+def _deployed() -> bool:
+    """Running on a serverless host rather than somebody's machine.
+
+    Set by the platform. Used only to skip things that need a writable disk,
+    which is the one thing that genuinely differs and the one that produced a
+    500 on the first real request after the key went on.
+    """
+
+    return bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
+
+
 def _model_key_configured() -> bool:
     """Whether this deployment can talk to a model at all.
 
@@ -159,7 +170,12 @@ def analyse(request: AnalyseRequest, http: Request) -> AnalyseResponse:
             allowance = budget.spend(visitor_id(address_of(http), SALT))
             if not allowance.allowed:
                 return AnalyseResponse(ok=False, model="none", error=allowance.reason)
-            llm = RecordingLLM(GeminiClient())
+
+            # Recording is a development convenience: it saves each response so
+            # the next run can replay it for nothing. Deployed there is no disk
+            # to save to and nothing would survive the request anyway, so the
+            # wrapper is left off rather than made to fail quietly.
+            llm = GeminiClient() if _deployed() else RecordingLLM(GeminiClient())
     except LLMError as exc:
         return AnalyseResponse(ok=False, model="none", error=str(exc))
 

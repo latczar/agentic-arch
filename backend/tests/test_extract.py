@@ -135,3 +135,26 @@ def test_markdown_fences_do_not_break_parsing():
 
     assert result.ok
     assert len(result.attempts) == 1
+
+
+def test_a_recorder_that_cannot_write_still_returns_the_answer(tmp_path, monkeypatch):
+    """A read-only disk must not turn a working request into a 500.
+
+    Every serverless host has one, and this raised in the constructor before the
+    model was ever reached. Recording is a convenience, and a convenience does
+    not get to fail the thing it assists.
+    """
+
+    from pathlib import Path
+
+    from app.llm.record import RecordingLLM
+
+    def refuse(*args, **kwargs):
+        raise OSError(30, "Read-only file system")
+
+    monkeypatch.setattr(Path, "mkdir", refuse)
+
+    recorder = RecordingLLM(ScriptedLLM(["{}"]), directory=tmp_path / "nowhere")
+
+    assert recorder.recording is False
+    assert recorder.generate_json(system="s", prompt="p", schema={}) == "{}"
