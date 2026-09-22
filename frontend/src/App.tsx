@@ -157,8 +157,9 @@ export default function App() {
       <header className="masthead">
         <h1>Automation Architect</h1>
         <p>
-          Describe something repetitive you do by hand. See which parts a computer
-          could take over, and where it should stop and ask you first.
+          Work out what is safe to automate before anybody builds it. Describe
+          something you do by hand, and see which parts a computer could take
+          over, which need a person to sign off, and which should stay with you.
         </p>
       </header>
 

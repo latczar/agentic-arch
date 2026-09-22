@@ -1,6 +1,6 @@
 # Automation Architect
 
-**Describe repetitive work in plain English. Get back a validated automation architecture.**
+**Work out what is safe to automate before anybody builds it.**
 
 **[Try it](https://ai-auto-architect.vercel.app).** Two worked examples, no sign-up, no API key.
 

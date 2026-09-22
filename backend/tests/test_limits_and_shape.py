@@ -257,3 +257,34 @@ def test_a_request_mentioning_a_process_still_gets_the_nudge():
 
 def test_empty_input_is_not_a_request():
     assert not looks_like_a_request("   ")
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "so can u help me check",
+        "hey can you build me a payroll checker",
+        "ok so could u make something for invoices",
+        "um hi can you help me with tracking viewings",
+        "so ok can you create a tool for this",
+        "pls make me a chaser for late rent",
+    ],
+)
+def test_throat_clearing_and_shorthand_do_not_sneak_a_request_through(text):
+    """The gap that shipped.
+
+    A matcher anchored to the start missed anything with a "so" in front or a
+    "u" instead of "you", and the tool then produced a confident analysis of a
+    process nobody had described.
+    """
+
+    assert looks_like_a_request(text)
+
+
+def test_a_description_that_opens_casually_is_still_a_description():
+    """The false positive to avoid: stripping filler must not catch real work."""
+
+    assert not looks_like_a_request(
+        "so every Friday I go through the shared inbox and check each invoice"
+    )
+    assert not looks_like_a_request("ok so I check the portal each morning and download the leads")

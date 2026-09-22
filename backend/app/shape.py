@@ -43,7 +43,26 @@ REQUEST_OPENERS = (
     "how do i make",
     "help me build",
     "help me make",
+    "help me check",
+    "help me with",
 )
+
+# Nobody types a clean sentence into a box. "so can u help me check" walked
+# straight past a matcher anchored to the start, because of a leading "so" and
+# a "u", and produced a confident analysis of nothing. Stripped before matching
+# rather than added to the list above, which would need every combination.
+LEAD_IN = ("so ", "ok ", "okay ", "hi ", "hey ", "hello ", "um ", "uh ", "well ", "right ")
+
+# Chat shorthand, normalised to the words the openers are written in.
+SHORTHAND = {
+    "u": "you",
+    "ur": "your",
+    "pls": "please",
+    "plz": "please",
+    "wud": "would",
+    "cud": "could",
+    "n": "and",
+}
 
 # Signs somebody is describing what they actually do. Any one of these and we
 # leave it alone, whatever else the text contains.
@@ -67,10 +86,28 @@ NUDGE = (
 )
 
 
+def normalise(text: str) -> str:
+    """Lower case, chat shorthand expanded, and any throat-clearing removed."""
+
+    words = [SHORTHAND.get(w, w) for w in text.strip().lower().split()]
+    cleaned = " ".join(words)
+
+    # Repeatedly, because "so ok can you" is a thing people type.
+    changed = True
+    while changed:
+        changed = False
+        for opener in LEAD_IN:
+            if cleaned.startswith(opener):
+                cleaned = cleaned[len(opener) :]
+                changed = True
+
+    return cleaned
+
+
 def looks_like_a_request(text: str) -> bool:
     """True when this is somebody asking for a tool rather than describing a job."""
 
-    cleaned = text.strip().lower()
+    cleaned = normalise(text)
     if not cleaned:
         return False
 
