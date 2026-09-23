@@ -7,12 +7,14 @@ import {
   createShare,
   download,
   fetchExamples,
+  fetchLibrary,
   fetchPlaybook,
   fetchShare,
   shareIdFromUrl,
 } from "./api";
 import { Diagram } from "./components/Diagram";
 import { Effort } from "./components/Effort";
+import { Library } from "./components/Library";
 import { Playbook } from "./components/Playbook";
 import { Verdicts } from "./components/Verdicts";
 import { clearDraft, loadDraft, saveDraft } from "./draft";
@@ -21,6 +23,7 @@ import type {
   Answer,
   EffortInput,
   Example,
+  LibraryArticle,
   PlaybookResponse,
   SharedAnalysis,
 } from "./types";
@@ -43,6 +46,10 @@ export default function App() {
   // The retrieved article, if the corpus covers this job. Kept apart from the
   // analysis because it arrives separately and outlives it failing.
   const [playbook, setPlaybook] = useState<PlaybookResponse | null>(null);
+  // Every article there is, so an empty match can be explained rather than
+  // looking like something broke. Empty if it fails to load, which hides both
+  // places it appears and costs nothing else.
+  const [library, setLibrary] = useState<LibraryArticle[]>([]);
 
   // Keyed by the question text, because ids are regenerated on every run and an
   // answer has to outlive the analysis that prompted it. Answers accumulate:
@@ -63,6 +70,7 @@ export default function App() {
 
   useEffect(() => {
     fetchExamples().then(setExamples).catch(() => setExamples([]));
+    fetchLibrary().then(setLibrary).catch(() => setLibrary([]));
   }, []);
 
   // What was in the box last time, from this browser and nowhere else. Skipped
@@ -333,6 +341,18 @@ export default function App() {
               ))}
             </div>
           )}
+
+          {library.length > 0 && (
+            <details className="library">
+              <summary>Articles it can match you to ({library.length})</summary>
+              <p className="library__lead">
+                A small written library, searched by meaning against what you type.
+                When one is close enough, it appears beside your process. They are
+                shown to you, not fed to the model that judges your process.
+              </p>
+              <Library articles={library} />
+            </details>
+          )}
         </section>
       )}
 
@@ -485,6 +505,27 @@ export default function App() {
               <Playbook match={playbook.match} retriever={playbook.retriever} />
             )}
 
+            {/* Only when the search ran and found nothing. An empty retriever
+                name means it failed, and claiming the library has no article
+                for this job would then be a guess dressed up as a fact. */}
+            {playbook && !playbook.match && playbook.retriever && library.length > 0 && (
+              <section className="playbook playbook--none">
+                <header className="playbook__head">
+                  <span className="playbook__label">How this job usually goes</span>
+                  <h3>No article for this job yet</h3>
+                </header>
+                <p className="playbook__caveat">
+                  Nothing in the library was close enough to be worth showing.
+                </p>
+                {/* Closed, because a panel saying "nothing here" should not then
+                    take up more room than the panels that found something. */}
+                <details className="library library--inline">
+                  <summary>See the {library.length} jobs it covers</summary>
+                  <Library articles={library} />
+                </details>
+              </section>
+            )}
+
             {result.graph.questions.length > 0 && (
               <section className="questions">
                 <h3>Worth asking before building anything</h3>
@@ -569,10 +610,36 @@ export default function App() {
         {/* "none" is the placeholder on a response that never reached a model,
             and "Answered by none" is a sentence no reader should be shown. */}
         {result && result.model !== "none" && (
-          <span>Answered by {result.model}. </span>
+          <span>{answeredBy(result.model)} </span>
         )}
         <a href="https://github.com/latczar/automation-architect">Source on GitHub</a>
       </footer>
     </div>
   );
+}
+
+/**
+ * Who produced the analysis, in words a reader would use.
+ *
+ * The server names its clients for developers: "recording(gemini:gemini-3.5-
+ * flash-lite)" means the local wrapper that saves each response, around the
+ * Gemini client, around a model id. A reader wants "Gemini 3.5 Flash-Lite".
+ */
+function answeredBy(model: string): string {
+  if (model === "a shared link") return "Opened from a shared link.";
+
+  const inner = model.replace(/^recording\((.*)\)$/, "$1");
+  if (inner.startsWith("replay:")) return "Answered by a recorded example, not a live model.";
+
+  if (inner.startsWith("gemini:")) {
+    const name = inner
+      .slice("gemini:".length)
+      .split("-")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ")
+      .replace(" Flash Lite", " Flash-Lite");
+    return `Answered by ${name}.`;
+  }
+
+  return `Answered by ${inner}.`;
 }

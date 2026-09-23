@@ -19,8 +19,9 @@ interface Props {
  * and bold labels. A parser for that is thirty lines, where a dependency is
  * around 40KB of someone else's code plus whatever it does with raw HTML. If
  * the corpus ever needs tables or links this stops being the right call.
+ * Shared with the library list, which shows the same articles.
  */
-function render(body: string) {
+export function render(body: string) {
   const blocks: ReactElement[] = [];
   let list: string[] = [];
   let ordered = false;

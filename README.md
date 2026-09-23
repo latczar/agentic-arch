@@ -87,7 +87,8 @@ separate requests, so the article still arrives when the model is slow or down.
 ## What else it does
 
 - **Finds the article for the job.** Twelve written articles; the closest is shown
-  beside your process, and it usually mentions the step you forgot.
+  beside your process, and it usually mentions the step you forgot. The whole library
+  is listed under the box, so when nothing matches the page can say so plainly.
 - **Takes answers to its own questions.** Answer one and the process is mapped again,
   with your answer treated as fact.
 - **Does the time arithmetic with your numbers.** How often, how long per step. It

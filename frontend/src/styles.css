@@ -255,6 +255,14 @@ button:disabled {
   box-shadow: var(--shadow);
 }
 
+/* On a phone the steps fill the width, and the zoom buttons land on top of the
+   last one. Pinching does the same job there, so the buttons go. */
+@media (max-width: 640px) {
+  .diagram .react-flow__controls {
+    display: none;
+  }
+}
+
 /* Nodes ------------------------------------------------------------------- */
 
 .node {
@@ -552,6 +560,45 @@ button:disabled {
   color: var(--accent);
 }
 
+/* One chevron for every open-and-close in the article panels and the library,
+   in place of the browser's own triangle, which is a different size and shape
+   in every browser and looked like a leftover next to everything else. */
+.playbook summary,
+.library summary {
+  list-style: none;
+}
+
+.playbook summary::-webkit-details-marker,
+.library summary::-webkit-details-marker {
+  display: none;
+}
+
+.playbook summary::before,
+.library summary::before {
+  content: "";
+  display: inline-block;
+  width: 0.42em;
+  height: 0.42em;
+  margin-right: 0.6em;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: translateY(-0.15em) rotate(-45deg);
+  transition: transform 0.15s ease;
+}
+
+.playbook details[open] > summary::before,
+.library[open] > summary::before,
+.library details[open] > summary::before {
+  transform: translateY(-0.25em) rotate(45deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .playbook summary::before,
+  .library summary::before {
+    transition: none;
+  }
+}
+
 .playbook__body {
   margin-top: 10px;
   font-size: 0.85rem;
@@ -582,6 +629,72 @@ button:disabled {
   margin: 10px 0 0;
   font-size: 0.75rem;
   color: var(--muted);
+}
+
+/* The library ------------------------------------------------------------- */
+
+/* Under the box, closed by default: there for anybody wondering what it can
+   match, and out of the way for everybody else. */
+.library {
+  margin-top: 14px;
+  font-size: 0.875rem;
+}
+
+.library > summary {
+  cursor: pointer;
+  color: var(--accent);
+}
+
+.library__lead {
+  margin: 8px 0 0;
+  max-width: 62ch;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.library__list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  border-top: 1px solid var(--border);
+}
+
+.library__list > li {
+  border-bottom: 1px solid var(--border);
+}
+
+.library__list summary {
+  margin: 0;
+  padding: 8px 2px;
+  cursor: pointer;
+  color: var(--text);
+  font-size: 0.875rem;
+}
+
+.library__list summary:hover {
+  color: var(--accent);
+}
+
+.library__list .playbook__body {
+  margin: 0 0 12px;
+  padding: 0 2px;
+}
+
+.library__aliases {
+  margin: 0 2px 6px;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+/* Inside the "no article" panel: a quiet way in, sized like the panel's own
+   "Read the article" link rather than like a second heading. */
+.library--inline {
+  margin-top: 10px;
+  font-size: 0.85rem;
+}
+
+.library--inline > summary {
+  margin-top: 0;
 }
 
 /* Questions --------------------------------------------------------------- */

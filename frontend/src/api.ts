@@ -5,6 +5,7 @@ import type {
   EffortInput,
   EffortSummary,
   Example,
+  LibraryArticle,
   PlaybookResponse,
   ProcessGraph,
   ShareCreated,
@@ -15,6 +16,13 @@ export async function fetchExamples(): Promise<Example[]> {
   const response = await fetch("/api/examples");
   if (!response.ok) throw new Error(`Could not load examples (${response.status})`);
   return (await response.json()).examples;
+}
+
+/** Every article the page can match. About 20KB, so fetched once, up front. */
+export async function fetchLibrary(): Promise<LibraryArticle[]> {
+  const response = await fetch("/api/playbooks");
+  if (!response.ok) throw new Error(`Could not load the library (${response.status})`);
+  return (await response.json()).articles;
 }
 
 export async function analyse(

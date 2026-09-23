@@ -309,6 +309,41 @@ def playbook(request: PlaybookRequest) -> PlaybookResponse:
     )
 
 
+class LibraryArticle(BaseModel):
+    id: str
+    title: str
+    also_called: list[str]
+    body: str
+
+
+class LibraryResponse(BaseModel):
+    articles: list[LibraryArticle]
+
+
+@app.get("/api/playbooks", response_model=LibraryResponse)
+def library() -> LibraryResponse:
+    """Every article the page can match, so it is plain what it covers.
+
+    Without this, an empty article panel reads as the page failing. With it, a
+    person can see that nothing matched because the library has no article for
+    that job, and read the ones it does have.
+
+    Taken from the retriever's own corpus rather than read off disk again, so
+    the list and the matching cannot disagree about what exists. Sorted by
+    title, since this is for browsing, and the whole library is about 20KB.
+    """
+
+    articles = sorted(_retriever().playbooks, key=lambda p: p.title)
+    return LibraryResponse(
+        articles=[
+            LibraryArticle(
+                id=p.id, title=p.title, also_called=list(p.also_called), body=p.body
+            )
+            for p in articles
+        ]
+    )
+
+
 @app.post("/api/export/n8n")
 def export_n8n(request: ExportRequest) -> dict:
     """An importable n8n workflow scaffold for a process already analysed.

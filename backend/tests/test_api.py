@@ -29,6 +29,24 @@ def test_examples_say_which_can_be_replayed():
     assert all(len(e["description"]) > 50 for e in examples)
 
 
+def test_the_library_lists_every_article_the_search_can_return():
+    """The list and the matching must agree, or the page promises what it lacks."""
+
+    from app.playbooks import load_playbooks
+
+    articles = client.get("/api/playbooks").json()["articles"]
+    corpus = load_playbooks()
+
+    assert {a["id"] for a in articles} == {p.id for p in corpus}
+    assert len(articles) == len(corpus)
+    assert all(a["title"] and a["body"] and a["also_called"] for a in articles)
+
+
+def test_the_library_is_in_title_order_for_browsing():
+    titles = [a["title"] for a in client.get("/api/playbooks").json()["articles"]]
+    assert titles == sorted(titles)
+
+
 def test_analysing_a_replayed_case_returns_a_graph_and_a_plan():
     body = client.post(
         "/api/analyse", json={"description": INVOICE, "case": "invoice-with-approval"}

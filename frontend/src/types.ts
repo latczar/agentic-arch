@@ -92,6 +92,14 @@ export interface PlaybookResponse {
   retriever: string;
 }
 
+/** One article in the written library, listed so the page can say what it covers. */
+export interface LibraryArticle {
+  id: string;
+  title: string;
+  also_called: string[];
+  body: string;
+}
+
 /** A reply to one of the questions a previous run asked. Sent back as fact. */
 export interface Answer {
   question: string;
