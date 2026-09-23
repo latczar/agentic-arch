@@ -27,6 +27,18 @@ DEFAULT_MODEL = "gemini-3.5-flash-lite"
 # however many times we ask, so retrying it just wastes the user's time.
 TRANSIENT_STATUSES = frozenset({429, 500, 502, 503, 504})
 
+# How long one call may spend being patient before it gives up and says so.
+#
+# Backing off four times doubling from two seconds is fine in isolation and adds
+# up badly: a single analysis makes two of these calls, each of which may repair
+# itself twice more, so a busy afternoon at the provider turns a page load into
+# several minutes of nothing. Vercel stops a function at 60 seconds regardless,
+# and a 504 tells the reader nothing they can act on.
+#
+# Found the hard way, with the model returning 503 while a browser sat on
+# "Working through it..." for two minutes.
+RETRY_BUDGET_SECONDS = 35.0
+
 
 class GeminiClient:
     """Talks to Google AI Studio."""
@@ -36,8 +48,10 @@ class GeminiClient:
         model: str = DEFAULT_MODEL,
         api_key: str | None = None,
         max_retries: int = 4,
+        retry_budget: float = RETRY_BUDGET_SECONDS,
     ) -> None:
         self.max_retries = max_retries
+        self.retry_budget = retry_budget
         key = api_key or os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
         if not key:
             raise LLMError(
@@ -65,6 +79,8 @@ class GeminiClient:
         """
 
         delay = 2.0
+        started = time.monotonic()
+
         for attempt in range(1, self.max_retries + 1):
             try:
                 return self._request(system=system, prompt=prompt, schema=schema)
@@ -73,7 +89,20 @@ class GeminiClient:
             except Exception as exc:  # provider SDKs raise a wide range of types
                 if not _is_transient(exc) or attempt == self.max_retries:
                     raise LLMError(f"Gemini request failed: {exc}") from exc
+
                 wait = delay + random.uniform(0, 1)
+
+                # Stop before the sleep that would take us past the budget,
+                # rather than after. Waiting first and then reporting that we
+                # waited too long is the worst of both.
+                if time.monotonic() - started + wait > self.retry_budget:
+                    raise LLMError(
+                        f"{self.model} is busy and did not answer within "
+                        f"{self.retry_budget:.0f} seconds. Give it a minute and "
+                        "try again, or run one of the recorded examples, which "
+                        "need no model at all."
+                    ) from exc
+
                 print(f"  {self.model} busy, retrying in {wait:.1f}s "
                       f"(attempt {attempt} of {self.max_retries})...")
                 time.sleep(wait)

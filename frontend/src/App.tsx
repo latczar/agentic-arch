@@ -15,10 +15,14 @@ import { Effort } from "./components/Effort";
 import { Verdicts } from "./components/Verdicts";
 import type {
   AnalyseResponse,
+  Answer,
   EffortInput,
   Example,
   SharedAnalysis,
 } from "./types";
+
+/** The server caps these too. Slicing here keeps a 422 off the screen. */
+const MOST_ANSWERS = 12;
 
 export default function App() {
   const [description, setDescription] = useState("");
@@ -31,6 +35,12 @@ export default function App() {
   const [exporting, setExporting] = useState(false);
   // "copied" or "downloaded", so the message can say what actually happened.
   const [handoff, setHandoff] = useState<"copied" | "downloaded" | null>(null);
+
+  // Keyed by the question text, because ids are regenerated on every run and an
+  // answer has to outlive the analysis that prompted it. Answers accumulate:
+  // something said two rounds ago is still true now.
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [usedAnswers, setUsedAnswers] = useState<Answer[]>([]);
 
   const [effortInput, setEffortInput] = useState<EffortInput | null>(null);
   const [shared, setShared] = useState<SharedAnalysis | null>(null);
@@ -66,7 +76,7 @@ export default function App() {
       .finally(() => setOpening(false));
   }, []);
 
-  async function run() {
+  async function run(given: Answer[] = []) {
     setBusy(true);
     setError(null);
     setResult(null);
@@ -74,14 +84,30 @@ export default function App() {
     setShareUrl(null);
     setShared(null);
     try {
-      const response = await analyse(description, replayCase);
+      // Answering means going to the model. A recorded example replays one fixed
+      // response, so replaying it would hand back the identical analysis and
+      // look, reasonably enough, like the answers had been ignored.
+      const response = await analyse(
+        description,
+        given.length ? undefined : replayCase,
+        given,
+      );
       setResult(response);
+      setUsedAnswers(response.ok ? given : []);
       if (!response.ok && response.error) setError(response.error);
     } catch (exc) {
       setError(exc instanceof Error ? exc.message : "Something went wrong.");
     } finally {
       setBusy(false);
     }
+  }
+
+  /** Everything answered so far, trimmed and with the blanks dropped. */
+  function answersGiven(): Answer[] {
+    return Object.entries(answers)
+      .map(([question, answer]) => ({ question, answer: answer.trim() }))
+      .filter((a) => a.answer.length > 0)
+      .slice(0, MOST_ANSWERS);
   }
 
   async function exportWorkflow() {
@@ -152,6 +178,8 @@ export default function App() {
 
   function useExample(example: Example) {
     setDescription(example.description);
+    setAnswers({}); // A different process, so nothing said about the last one holds.
+    setUsedAnswers([]);
     // Recorded examples replay from disk, so they work with no API key and
     // cost nothing. Anything typed by hand goes to the model.
     setReplayCase(example.replayable ? example.id : undefined);
@@ -215,7 +243,7 @@ export default function App() {
           />
 
           <div className="composer__actions">
-            <button onClick={run} disabled={busy || description.trim().length < 20}>
+            <button onClick={() => run()} disabled={busy || description.trim().length < 20}>
               {busy ? "Working through it..." : "Analyse this"}
             </button>
             {replayCase && (
@@ -292,6 +320,20 @@ export default function App() {
 
             <p className="results__summary">{result.graph.summary}</p>
 
+            {usedAnswers.length > 0 && (
+              <div className="answered">
+                <strong>Worked out again using what you told it:</strong>
+                <ul>
+                  {usedAnswers.map((given) => (
+                    <li key={given.question}>
+                      <span className="answered__question">{given.question}</span>
+                      {given.answer}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             {handoff && (
               <p className="handoff">
                 {handoff === "copied" ? (
@@ -366,19 +408,77 @@ export default function App() {
             {result.graph.questions.length > 0 && (
               <section className="questions">
                 <h3>Worth asking before building anything</h3>
+                {!shared && (
+                  <p className="questions__lead">
+                    Answer any of these and it will work the process out again,
+                    treating what you say as fact rather than as a suggestion.
+                  </p>
+                )}
+
                 {result.graph.questions.map((question) => (
                   <div key={question.id} className="question">
                     <p className="question__text">{question.question}</p>
                     <p className="question__why">{question.why_it_matters}</p>
+
                     {question.suggested_answers.length > 0 && (
-                      <ul className="question__answers">
-                        {question.suggested_answers.map((answer, i) => (
-                          <li key={i}>{answer}</li>
-                        ))}
-                      </ul>
+                      <div className="question__answers">
+                        {question.suggested_answers.map((answer, i) =>
+                          shared ? (
+                            <span key={i} className="question__suggestion">
+                              {answer}
+                            </span>
+                          ) : (
+                            <button
+                              key={i}
+                              type="button"
+                              className={`question__suggestion question__suggestion--pick ${
+                                answers[question.question] === answer
+                                  ? "question__suggestion--chosen"
+                                  : ""
+                              }`}
+                              onClick={() =>
+                                setAnswers((current) => ({
+                                  ...current,
+                                  [question.question]: answer,
+                                }))
+                              }
+                            >
+                              {answer}
+                            </button>
+                          ),
+                        )}
+                      </div>
+                    )}
+
+                    {!shared && (
+                      <input
+                        className="question__input"
+                        value={answers[question.question] ?? ""}
+                        placeholder="Or answer in your own words"
+                        onChange={(event) =>
+                          setAnswers((current) => ({
+                            ...current,
+                            [question.question]: event.target.value,
+                          }))
+                        }
+                      />
                     )}
                   </div>
                 ))}
+
+                {!shared && answersGiven().length > 0 && (
+                  <button
+                    className="questions__again"
+                    onClick={() => run(answersGiven())}
+                    disabled={busy}
+                  >
+                    {busy
+                      ? "Working through it again..."
+                      : `Analyse again with ${answersGiven().length} ${
+                          answersGiven().length === 1 ? "answer" : "answers"
+                        }`}
+                  </button>
+                )}
               </section>
             )}
           </aside>

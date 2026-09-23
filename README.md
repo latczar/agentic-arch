@@ -394,6 +394,32 @@ npm run dev
 Then open http://localhost:5173. The two examples on the page are recorded, so they
 work with no API key.
 
+## Answering its questions
+
+Every analysis ends with two or three things the description never said. Until now
+that was a dead end: good questions, nowhere to put the reply.
+
+Each one now takes an answer, either a suggested one in a click or your own words,
+and the process is worked out again with those answers treated as fact rather than
+as hints. Say approval is needed over 5,000 and an approval step appears in the
+process with the threshold on it.
+
+Two things here are less obvious than they look.
+
+**The answers go into the repair prompt as well as the first one.** That prompt
+restates the description from scratch, so leaving them out means a second attempt
+quietly produces a graph ignoring everything the person just told us, and that graph
+validates perfectly. Nothing complains, nothing logs, and the only symptom is an
+answer that seems to have been ignored. There is a test for it, because nothing else
+would catch it.
+
+**Answering leaves the recorded examples behind.** A recording replays one fixed
+response, so replaying it after an answer would hand back an identical analysis and
+look, reasonably enough, as though the answers had been thrown away. Answering goes
+to the model, which is also why it needs a key.
+
+Answers accumulate rather than replace. Something said two rounds ago is still true.
+
 ## How much time it takes
 
 ![The time panel, showing 39.1 hours a month with 36.2 of them automatable](docs/effort.png)
@@ -518,7 +544,7 @@ cd backend
 .venv/Scripts/python -m pytest
 ```
 
-207 tests, none of which call an API. The model is substituted with a scripted
+229 tests, none of which call an API. The model is substituted with a scripted
 stand-in that returns deliberately broken output, so the repair loop can be tested
 precisely and for free.
 
@@ -560,8 +586,10 @@ figures are in pounds, because that is who it is for.
 ## Status
 
 Working: the two-stage pipeline, validation, repair, record/replay, a web front end
-with the process rendered as a diagram, the time arithmetic, shareable links, export
-to n8n, and a scored eval suite with committed baselines.
+with the process rendered as a diagram, answerable questions that feed back into the
+analysis, a written record wherever the code overruled the model, the time
+arithmetic, shareable links, handover to n8n, and a scored eval suite with committed
+baselines.
 
 Live at [ai-auto-architect.vercel.app](https://ai-auto-architect.vercel.app).
 

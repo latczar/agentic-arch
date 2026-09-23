@@ -1,5 +1,6 @@
 import type {
   AnalyseResponse,
+  Answer,
   AutomationPlan,
   EffortInput,
   EffortSummary,
@@ -18,11 +19,12 @@ export async function fetchExamples(): Promise<Example[]> {
 export async function analyse(
   description: string,
   replayCase?: string,
+  answers: Answer[] = [],
 ): Promise<AnalyseResponse> {
   const response = await fetch("/api/analyse", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ description, case: replayCase ?? null }),
+    body: JSON.stringify({ description, case: replayCase ?? null, answers }),
   });
 
   if (response.status === 422) {

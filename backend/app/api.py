@@ -29,7 +29,7 @@ from app.schemas.assessment import AutomationPlan
 from app.schemas.effort import EffortInput, EffortSummary, summarise_effort
 from app.shape import NUDGE, looks_like_a_request
 from app.share import ShareTooLarge, open_store
-from app.schemas.process import ProcessGraph
+from app.schemas.process import Answer, ProcessGraph
 
 EXAMPLES = [
     {
@@ -106,6 +106,11 @@ class AnalyseRequest(BaseModel):
         description="Replay a recorded case instead of calling the API. No key needed.",
     )
     max_attempts: int = Field(default=3, ge=1, le=5)
+    answers: list[Answer] = Field(
+        default_factory=list,
+        max_length=12,
+        description="Replies to the questions a previous run asked. Treated as fact.",
+    )
 
 
 class AttemptInfo(BaseModel):
@@ -181,7 +186,10 @@ def analyse(request: AnalyseRequest, http: Request) -> AnalyseResponse:
 
     try:
         extraction = extract_process(
-            request.description, llm, max_attempts=request.max_attempts
+            request.description,
+            llm,
+            max_attempts=request.max_attempts,
+            answers=request.answers,
         )
     except LLMError as exc:
         return AnalyseResponse(ok=False, model=llm.name, error=str(exc))

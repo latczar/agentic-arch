@@ -79,6 +79,12 @@ export interface Blocker {
   workaround: string | null;
 }
 
+/** A reply to one of the questions a previous run asked. Sent back as fact. */
+export interface Answer {
+  question: string;
+  answer: string;
+}
+
 /** A record of our code disagreeing with the model. Written only by the server. */
 export interface Override {
   kind: "risk_added" | "verdict_downgraded" | "control_added";

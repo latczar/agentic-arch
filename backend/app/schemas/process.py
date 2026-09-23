@@ -125,6 +125,19 @@ class ClarifyingQuestion(Base):
     )
 
 
+class Answer(Base):
+    """What the person said when asked one of the questions above.
+
+    The question text is carried rather than its id, because ids are generated
+    fresh on every run and an answer has to outlive the analysis that prompted
+    it. This is the one piece of input that did not come from the description,
+    and it is treated as fact: the model is told to build it in, not to weigh it.
+    """
+
+    question: str = Field(max_length=500)
+    answer: str = Field(min_length=1, max_length=500)
+
+
 class ProcessGraph(Base):
     """A complete description of how the work is done today."""
 

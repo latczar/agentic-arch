@@ -14,12 +14,13 @@ actually makes. Adding examples before you have evidence is guessing.
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 from pydantic import ValidationError
 
 from app.llm.base import StructuredLLM
-from app.schemas.process import ProcessGraph
+from app.schemas.process import Answer, ProcessGraph
 
 SYSTEM_PROMPT = """\
 You map out business processes. Someone describes repetitive work they do by
@@ -86,11 +87,12 @@ def extract_process(
     description: str,
     llm: StructuredLLM,
     max_attempts: int = 3,
+    answers: Sequence[Answer] = (),
 ) -> ExtractionResult:
     """Ask the model for a process graph, repairing it if the checker objects."""
 
     schema = ProcessGraph.model_json_schema()
-    prompt = f"Here is the process, in the person's own words:\n\n{description.strip()}"
+    prompt = _first_prompt(description, answers)
     attempts: list[Attempt] = []
     previous_errors: list[str] | None = None
 
@@ -111,7 +113,7 @@ def extract_process(
                 break
 
             previous_errors = attempt.errors
-            prompt = _repair_prompt(description, raw, attempt.errors)
+            prompt = _repair_prompt(description, raw, attempt.errors, answers)
             continue
 
         return ExtractionResult(graph=graph, attempts=attempts, model=llm.name)
@@ -119,16 +121,53 @@ def extract_process(
     return ExtractionResult(graph=None, attempts=attempts, model=llm.name)
 
 
-def _repair_prompt(description: str, previous: str, errors: list[str]) -> str:
+def _stated_facts(answers: Sequence[Answer]) -> str:
+    """The answers as settled fact, or nothing at all.
+
+    Written as things the person has told us rather than as hints. A question
+    somebody has already answered coming back a second time reads as not having
+    been listened to, and it is the commonest way a loop like this disappoints.
+    """
+
+    if not answers:
+        return ""
+
+    lines = "\n".join(f"- {a.question}\n  They said: {a.answer}" for a in answers)
+    return (
+        "\n\nThey have since been asked about the gaps, and answered:\n\n"
+        f"{lines}\n\n"
+        "Every answer above is a fact about how the work is done, exactly as much "
+        "as the description is. Build them into the process. Do not ask any of "
+        "them again."
+    )
+
+
+def _first_prompt(description: str, answers: Sequence[Answer] = ()) -> str:
+    return (
+        f"Here is the process, in the person's own words:\n\n{description.strip()}"
+        f"{_stated_facts(answers)}"
+    )
+
+
+def _repair_prompt(
+    description: str,
+    previous: str,
+    errors: list[str],
+    answers: Sequence[Answer] = (),
+) -> str:
     """Hand the model its own output back, with every objection at once.
 
     Showing it what it produced matters. Without that, it re-derives the answer
     from scratch and often reintroduces the fault it just fixed.
+
+    The answers go back in too. This prompt restates the description from
+    scratch, so leaving them out would silently discard them on the second
+    attempt and hand back a graph that ignores everything the person said.
     """
 
     complaints = "\n".join(f"- {e}" for e in errors)
     return (
-        f"Here is the process, in the person's own words:\n\n{description.strip()}\n\n"
+        f"{_first_prompt(description, answers)}\n\n"
         f"You produced this:\n\n{previous}\n\n"
         f"It does not satisfy the rules:\n\n{complaints}\n\n"
         "Produce the whole graph again with every one of those fixed. Change "

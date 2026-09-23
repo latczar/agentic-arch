@@ -538,11 +538,92 @@ button:disabled {
   font-size: 0.85rem;
 }
 
-.question__answers {
-  margin: 6px 0 0;
-  padding-left: 18px;
+.questions__lead {
+  margin: 0 0 12px;
   color: var(--muted);
   font-size: 0.85rem;
+}
+
+.question__answers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+/* Rendered as a button when it can be picked and a plain span when it cannot,
+   so a shared analysis does not offer controls that do nothing. */
+.question__suggestion {
+  font-size: 0.78rem;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--muted);
+  text-align: left;
+}
+
+.question__suggestion--pick {
+  cursor: pointer;
+}
+
+.question__suggestion--pick:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.question__suggestion--chosen {
+  border-color: var(--accent);
+  background: var(--auto-bg);
+  color: var(--accent);
+}
+
+.question__input {
+  width: 100%;
+  margin-top: 8px;
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+}
+
+.question__input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.questions__again {
+  margin-top: 14px;
+  width: 100%;
+}
+
+/* What the last run was told, so a changed answer explains a changed process. */
+.answered {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+
+.answered ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
+.answered li {
+  margin-top: 4px;
+}
+
+.answered__question {
+  display: block;
+  color: var(--muted);
+  font-size: 0.8rem;
 }
 
 .muted {
