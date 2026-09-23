@@ -45,6 +45,8 @@ from evals.cases import (
     replayable_cases,
 )
 from evals.checks import Outcome
+from evals.playbook_cases import ALL_CASES as PLAYBOOK_CASES
+from evals.playbook_cases import PlaybookCase
 
 # One baseline per mode. They measure different things and a live score is not
 # comparable to a replay score, so keeping them in one file would only invite
@@ -194,6 +196,57 @@ def grade_guard(case: GuardCase) -> CaseResult:
 
 def run_guards() -> Report:
     return Report(mode="guards", results=[grade_guard(c) for c in GUARD_CASES])
+
+
+# --- The retrieval suite ------------------------------------------------------
+
+
+def grade_playbook(case: PlaybookCase, retriever) -> CaseResult:
+    """Did it find the right article, and did it keep quiet when there is none?
+
+    Graded on the top result only. Somebody reads one article, not three, and a
+    system that puts the right one second is wrong in the way that matters.
+    """
+
+    found = retriever.search(case.query, limit=2)
+    top = found[0] if found else None
+    got = top.playbook.id if top else None
+
+    if case.expects is None:
+        passed = got is None
+        detail = (
+            "found nothing, as it should"
+            if passed
+            else f"offered {got} at {top.score:.2f} for work the corpus does not cover"
+        )
+    elif got is None:
+        passed = False
+        detail = f"found nothing, wanted {case.expects}"
+    elif got == case.expects:
+        passed = True
+        runner_up = f", next was {found[1].playbook.id} at {found[1].score:.2f}" if len(found) > 1 else ""
+        detail = f"{got} at {top.score:.2f}{runner_up}"
+    else:
+        passed = False
+        detail = f"offered {got} at {top.score:.2f}, wanted {case.expects}"
+
+    return CaseResult(
+        case_id=case.query[:58],
+        outcomes=[Outcome(name=case.why, passed=passed, detail=detail)],
+    )
+
+
+def run_playbooks(retriever) -> Report:
+    """Score one retriever over the labelled set.
+
+    The mode carries the retriever's name, so the two get their own baselines
+    and a change to one cannot be hidden by the other moving the other way.
+    """
+
+    return Report(
+        mode=f"playbooks-{retriever.name}",
+        results=[grade_playbook(c, retriever) for c in PLAYBOOK_CASES],
+    )
 
 
 # --- The pipeline suite -------------------------------------------------------

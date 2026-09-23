@@ -1,0 +1,97 @@
+{
+  "mode": "playbooks-bm25",
+  "recorded_at": "2026-09-23T16:53:23+00:00",
+  "score": 0.8182,
+  "passed": 18,
+  "total": 22,
+  "cases": {
+    "we sort out the rent money each month": {
+      "passed": 0,
+      "total": 1
+    },
+    "chasing tenants who have not paid yet": {
+      "passed": 0,
+      "total": 1
+    },
+    "every friday I go through the supplier invoices in the inb": {
+      "passed": 1,
+      "total": 1
+    },
+    "someone enquires about a flat and I have to get back to th": {
+      "passed": 0,
+      "total": 1
+    },
+    "tenant rings up saying the boiler is broken and I have to ": {
+      "passed": 1,
+      "total": 1
+    },
+    "the fixed term is ending soon and I need to work out if th": {
+      "passed": 1,
+      "total": 1
+    },
+    "working out what to pay each landlord after taking our fee": {
+      "passed": 1,
+      "total": 1
+    },
+    "checking which gas certificates are about to run out and b": {
+      "passed": 1,
+      "total": 1
+    },
+    "create a pdf payslip for my outgoing accounts then email t": {
+      "passed": 1,
+      "total": 1
+    },
+    "monthly wages run for the team": {
+      "passed": 1,
+      "total": 1
+    },
+    "getting the photos and a description up on the portals and": {
+      "passed": 1,
+      "total": 1
+    },
+    "collecting passports and proof of address and checking the": {
+      "passed": 0,
+      "total": 1
+    },
+    "buyer puts in an offer, I take it to the seller, and if th": {
+      "passed": 1,
+      "total": 1
+    },
+    "tenant is moving out so we inspect the place and work out ": {
+      "passed": 1,
+      "total": 1
+    },
+    "I restock the vending machine in reception every Tuesday": {
+      "passed": 1,
+      "total": 1
+    },
+    "each morning I water the office plants and empty the dishw": {
+      "passed": 1,
+      "total": 1
+    },
+    "I reconcile the coffee fund at the end of every month": {
+      "passed": 1,
+      "total": 1
+    },
+    "I book flights and hotels for the directors when they are ": {
+      "passed": 1,
+      "total": 1
+    },
+    "sorting out the parking permits for the staff car park": {
+      "passed": 1,
+      "total": 1
+    },
+    "writing the monthly newsletter and posting it on social me": {
+      "passed": 1,
+      "total": 1
+    },
+    "updating the holiday calendar when somebody books time off": {
+      "passed": 1,
+      "total": 1
+    },
+    "I check the fire alarm panel every week and write it in th": {
+      "passed": 1,
+      "total": 1
+    }
+  }
+}

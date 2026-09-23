@@ -18,12 +18,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.llm.base import LLMError  # noqa: E402
 from app.llm.gemini import GeminiClient  # noqa: E402
+from app.playbooks import EmbeddingRetriever, LexicalRetriever  # noqa: E402
 from evals.cases import PIPELINE_CASES, SHOULD_FIRE, SHOULD_STAY_QUIET  # noqa: E402
+from evals.playbook_cases import SHOULD_FIND_NOTHING, SHOULD_MATCH  # noqa: E402
 from evals.runner import (  # noqa: E402
     Report,
     load_baseline,
     run_guards,
     run_live,
+    run_playbooks,
     run_replay,
     save_baseline,
 )
@@ -40,11 +43,16 @@ def main() -> int:
         "mode",
         nargs="?",
         default="guards",
-        choices=["guards", "replay", "live", "all"],
+        choices=["guards", "replay", "playbooks", "live", "all"],
         help="What to measure. Default is the free one.",
     )
     parser.add_argument("--save", action="store_true", help="Record this run as the baseline.")
     parser.add_argument("--model", help="Override the model, live mode only.")
+    parser.add_argument(
+        "--embeddings",
+        action="store_true",
+        help="Also score the embedding retriever. Needs a key and the built vectors.",
+    )
     parser.add_argument(
         "--quiet", action="store_true", help="Totals only, no per check detail."
     )
@@ -57,6 +65,22 @@ def main() -> int:
 
     if args.mode in ("replay", "all"):
         reports.append(run_replay())
+
+    if args.mode in ("playbooks", "all"):
+        # The word matcher always. It needs no key, no network and no build
+        # step, so it belongs in the run everybody can do for nothing.
+        reports.append(run_playbooks(LexicalRetriever()))
+
+        if args.embeddings:
+            # Opt in, because this one costs a call per case and will not run
+            # at all on a fresh clone. Kept out of "all" so that "all" stays
+            # free and offline, which is the only reason anybody runs it often.
+            try:
+                from app.embed import embed
+
+                reports.append(run_playbooks(EmbeddingRetriever(embed_query=embed)))
+            except LLMError as exc:
+                print(f"Skipping the embedding retriever: {exc}\n", file=sys.stderr)
 
     if args.mode == "live":
         try:
@@ -127,6 +151,14 @@ def show(report: Report, quiet: bool = False) -> bool:
         calm = sum(1 for r in report.results if r.case_id in quiet_ids and r.ok)
         print(f"  caught {caught}/{len(fire_ids)} real risks")
         print(f"  stayed quiet on {calm}/{len(quiet_ids)} harmless steps")
+
+    if report.mode.startswith("playbooks"):
+        matched = {c.query[:58] for c in SHOULD_MATCH}
+        right = sum(1 for r in report.results if r.case_id in matched and r.ok)
+        nothing = {c.query[:58] for c in SHOULD_FIND_NOTHING}
+        calm = sum(1 for r in report.results if r.case_id in nothing and r.ok)
+        print(f"  found the right article {right}/{len(matched)} times")
+        print(f"  correctly found nothing {calm}/{len(nothing)} times")
 
     for result in report.fixed:
         print(f"  FIXED:  {result.case_id} was a known gap and now passes")
