@@ -3,7 +3,7 @@
   "buildCommand": "npm --prefix frontend ci && npm --prefix frontend run build",
   "functions": {
     "index.py": {
-      "maxDuration": 60
+      "maxDuration": 120
     }
   }
 }

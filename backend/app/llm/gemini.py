@@ -13,61 +13,67 @@ import time
 
 from app.llm.base import LLMError
 
-# Flash rather than Flash-Lite, which is not the way round it sounds.
+# Flash-Lite, measured on the real workload rather than a toy prompt.
 #
-# Lite was chosen originally on quota: the free tier allows far more requests a
-# day on the smaller models, and extraction is mechanical work that does not
-# need a large one. Sound reasoning, and it stopped being true. Measured against
-# the same trivial prompt, three samples each:
+# Timed on 24 September 2026, a full analysis (map, then judge), three runs:
 #
-#     gemini-3.5-flash-lite    42.8s   68.8s   34.4s
-#     gemini-3.5-flash          6.0s   15.7s    4.1s
+#     gemini-3.5-flash-lite    19.6s   18.3s   21.2s    every call 8 to 13s
+#     gemini-3.5-flash         over 60s on the live site, twice that day
 #
-# An analysis makes two of these calls, so Lite could not finish inside Vercel's
-# 60 second limit and the deployed site returned 504 on every typed request. A
-# cheaper model you cannot finish a request on is not cheaper.
+# An earlier benchmark sent "say ok" and found Lite taking 34 to 68 seconds, so
+# the default was switched to Flash. That test had nothing in common with the
+# real work: no schema, no system prompt, a two word answer. Flash then timed
+# out on every typed request, and its free tier turned out to allow 20 requests
+# a day, which one analysis can spend a quarter of.
 #
-# Worth re-measuring rather than trusting: this is a snapshot of one afternoon,
-# and it is one line to change back.
-DEFAULT_MODEL = "gemini-3.5-flash"
+# The lesson is in the numbers above: measure the workload you actually run.
+DEFAULT_MODEL = "gemini-3.5-flash-lite"
 
 # HTTP statuses worth trying again: rate limited, or the provider is briefly
 # unwell. Anything else (a bad key, a malformed schema) will fail identically
 # however many times we ask, so retrying it just wastes the user's time.
 TRANSIENT_STATUSES = frozenset({429, 500, 502, 503, 504})
 
-# How long one call may spend being patient before it gives up and says so.
+# How long the platform lets one request run. Must match vercel.json, and a test
+# checks that it does. Vercel allows up to 300 on the free plan; 120 is plenty
+# for an analysis that normally takes 20, and nobody waits longer anyway.
+PLATFORM_LIMIT_SECONDS = 120.0
+
+# How long one request may spend on the model, in total: every call, every
+# repair attempt and every pause between retries.
 #
-# Backing off four times doubling from two seconds is fine in isolation and adds
-# up badly: a single analysis makes two of these calls, each of which may repair
-# itself twice more, so a busy afternoon at the provider turns a page load into
-# several minutes of nothing.
+# The earlier version budgeted only the pauses, 25 seconds a call for two calls.
+# Time spent inside a call was never counted, a call had no timeout at all, and
+# an analysis can make six calls, not two, once repairs are included. So one slow
+# reply held the request open until the platform killed it, and the reader got a
+# 504 instead of a sentence.
 #
-# The number is derived rather than picked. vercel.json allows a function 60
-# seconds, an analysis makes two calls, so neither may spend more than half of
-# what is left after a little room for the work itself. Set it above that and
-# the platform kills the request first, which produces a 504 the reader cannot
-# act on instead of a sentence telling them what to do.
-#
-# Found the hard way, with a browser sitting on "Working through it..." for two
-# minutes and then showing exactly that 504.
-PLATFORM_LIMIT_SECONDS = 60.0
-CALLS_PER_ANALYSIS = 2
-RETRY_BUDGET_SECONDS = 25.0
+# One deadline for the whole request fixes all three. The 20 seconds left over
+# covers the work around the calls, with room to spare.
+REQUEST_BUDGET_SECONDS = 100.0
+
+# Not worth starting a call with less than this left. It would almost certainly
+# be cut off, and a wasted call still counts against the day's quota.
+MIN_CALL_SECONDS = 5.0
 
 
 class GeminiClient:
-    """Talks to Google AI Studio."""
+    """Talks to Google AI Studio.
+
+    One client serves one request, and its budget starts when it is made. Every
+    call it makes is given only the time that is left.
+    """
 
     def __init__(
         self,
         model: str = DEFAULT_MODEL,
         api_key: str | None = None,
         max_retries: int = 4,
-        retry_budget: float = RETRY_BUDGET_SECONDS,
+        budget: float = REQUEST_BUDGET_SECONDS,
     ) -> None:
         self.max_retries = max_retries
-        self.retry_budget = retry_budget
+        self.budget = budget
+
         key = api_key or os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
         if not key:
             raise LLMError(
@@ -84,6 +90,13 @@ class GeminiClient:
         self.model = model
         self.name = f"gemini:{model}"
 
+        # Started once the client is ready, so the first import of the SDK,
+        # which takes about a second, is not charged to the model's time.
+        self._deadline = time.monotonic() + budget
+
+    def remaining(self) -> float:
+        return self._deadline - time.monotonic()
+
     def generate_json(self, *, system: str, prompt: str, schema: dict) -> str:
         """Ask for JSON, retrying through the provider having a bad moment.
 
@@ -95,28 +108,37 @@ class GeminiClient:
         """
 
         delay = 2.0
-        started = time.monotonic()
 
         for attempt in range(1, self.max_retries + 1):
+            left = self.remaining()
+            if left < MIN_CALL_SECONDS:
+                raise LLMError(self._out_of_time())
+
             try:
-                return self._request(system=system, prompt=prompt, schema=schema)
+                return self._request(system=system, prompt=prompt, schema=schema, timeout=left)
             except LLMError:
                 raise
             except Exception as exc:  # provider SDKs raise a wide range of types
+                if _is_timeout(exc):
+                    raise LLMError(self._out_of_time()) from exc
+                if _is_daily_quota(exc):
+                    raise LLMError(
+                        "Today's free model allowance has been used up, so new "
+                        "descriptions cannot be analysed until it resets tomorrow. "
+                        "The recorded examples still work, and need no model at all."
+                    ) from exc
                 if not _is_transient(exc) or attempt == self.max_retries:
                     raise LLMError(f"Gemini request failed: {exc}") from exc
 
                 wait = delay + random.uniform(0, 1)
 
-                # Stop before the sleep that would take us past the budget,
-                # rather than after. Waiting first and then reporting that we
-                # waited too long is the worst of both.
-                if time.monotonic() - started + wait > self.retry_budget:
+                # Stop before a sleep that would leave no time for the call
+                # after it, rather than sleeping and then running out.
+                if self.remaining() - wait < MIN_CALL_SECONDS:
                     raise LLMError(
-                        f"{self.model} is busy and did not answer within "
-                        f"{self.retry_budget:.0f} seconds. Give it a minute and "
-                        "try again, or run one of the recorded examples, which "
-                        "need no model at all."
+                        f"{self.model} is busy and did not answer in time. Give it "
+                        "a minute and try again, or run one of the recorded "
+                        "examples, which need no model at all."
                     ) from exc
 
                 print(f"  {self.model} busy, retrying in {wait:.1f}s "
@@ -126,7 +148,14 @@ class GeminiClient:
 
         raise LLMError("Unreachable: retry loop exited without returning.")
 
-    def _request(self, *, system: str, prompt: str, schema: dict) -> str:
+    def _out_of_time(self) -> str:
+        return (
+            f"{self.model} did not finish within the {self.budget:.0f} seconds this "
+            "page allows. Try again in a minute, or run one of the recorded "
+            "examples, which need no model at all."
+        )
+
+    def _request(self, *, system: str, prompt: str, schema: dict, timeout: float) -> str:
         # The Interactions API takes a single input string, so the system
         # instruction is prepended rather than passed separately.
         interaction = self._client.interactions.create(
@@ -137,12 +166,42 @@ class GeminiClient:
                 "mime_type": "application/json",
                 "schema": schema,
             },
+            timeout=timeout,
         )
 
         text = getattr(interaction, "output_text", None)
         if not text:
             raise LLMError("Gemini returned an empty response.")
         return text
+
+
+def _causes(exc: BaseException | None):
+    """The exception and everything it was raised from, since SDKs wrap."""
+
+    seen: set[int] = set()
+    while exc is not None and id(exc) not in seen:
+        seen.add(id(exc))
+        yield exc
+        exc = exc.__cause__ or exc.__context__
+
+
+def _is_timeout(exc: Exception) -> bool:
+    """Did the call run out of time? Matched by name, so no SDK import is needed.
+
+    The SDK raises APITimeoutError, wrapping httpx's own timeout types, and the
+    standard library has TimeoutError. All of them say so in the class name.
+    """
+
+    return any("timeout" in type(e).__name__.lower() for e in _causes(exc))
+
+
+def _is_daily_quota(exc: Exception) -> bool:
+    """A 429 that will not clear today, however long we wait."""
+
+    text = str(exc).lower()
+    return "429" in text and any(
+        phrase in text for phrase in ("per day", "daily", "quota exceeded")
+    )
 
 
 def _is_transient(exc: Exception) -> bool:

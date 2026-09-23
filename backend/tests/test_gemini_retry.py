@@ -1,8 +1,14 @@
-"""Being patient with a busy provider, but not indefinitely.
+"""Being patient with a busy provider, but never past the request's deadline.
 
 Backing off and trying again is right. Doing it without a ceiling is how a page
-sits on "Working through it..." for two minutes and then dies on the platform's
-own timeout, which tells the reader nothing.
+sits on "Working through it..." for a minute and then dies on the platform's own
+timeout, which tells the reader nothing.
+
+An earlier version of these tests checked that the pauses between retries fitted
+inside the platform limit, and they passed while the live site returned 504 on
+every request. The pauses were never the problem. The time spent inside each
+call was never counted, and a call had no timeout. The tests below check the
+property that actually matters: nothing outlives the request's deadline.
 
 None of these reach the network. The request method is replaced outright.
 """
@@ -12,7 +18,7 @@ import time
 import pytest
 
 from app.llm.base import LLMError
-from app.llm.gemini import GeminiClient
+from app.llm.gemini import MIN_CALL_SECONDS, GeminiClient
 
 
 class Busy(Exception):
@@ -30,8 +36,13 @@ def ask(c: GeminiClient) -> str:
     return c.generate_json(system="s", prompt="p", schema={})
 
 
+# Enough for one call and no retry: the first attempt starts, and the pause
+# after it would leave too little time for another.
+ONE_CALL = MIN_CALL_SECONDS + 1.0
+
+
 def test_it_gives_up_inside_the_budget_with_something_actionable():
-    c = client(retry_budget=0.0)
+    c = client(budget=ONE_CALL)
     c._request = lambda **_: (_ for _ in ()).throw(Busy())
 
     with pytest.raises(LLMError) as caught:
@@ -48,7 +59,7 @@ def test_it_gives_up_inside_the_budget_with_something_actionable():
 def test_giving_up_does_not_first_sit_through_the_sleep_it_cannot_afford():
     """Waiting and then reporting that we waited too long is the worst of both."""
 
-    c = client(retry_budget=0.0)
+    c = client(budget=ONE_CALL)
     c._request = lambda **_: (_ for _ in ()).throw(Busy())
 
     started = time.monotonic()
@@ -73,7 +84,7 @@ def test_a_budget_that_allows_it_still_retries_and_succeeds(monkeypatch):
     # everybody who runs the suite pay for it.
     monkeypatch.setattr("app.llm.gemini.time.sleep", lambda _: None)
 
-    c = client(retry_budget=30.0)
+    c = client(budget=30.0)
     c._request = flaky
 
     assert ask(c) == '{"ok": true}'
@@ -89,7 +100,7 @@ def test_a_permanent_failure_is_not_retried_at_all():
         calls["n"] += 1
         raise Exception("400 API key not valid")
 
-    c = client(retry_budget=30.0)
+    c = client(budget=30.0)
     c._request = refused
 
     with pytest.raises(LLMError):
@@ -98,21 +109,117 @@ def test_a_permanent_failure_is_not_retried_at_all():
     assert calls["n"] == 1
 
 
-def test_the_default_budget_fits_inside_the_platform_timeout():
-    """The whole point of the budget, so it is worth asserting rather than assuming.
+def test_each_call_is_given_only_the_time_that_is_left():
+    """The bug behind the 504: a call with no timeout can outlive the request."""
 
-    A budget that can outlast the platform is not a budget. Vercel kills the
-    request first and the reader gets a 504 saying nothing.
+    given = []
+
+    def record(**kwargs):
+        given.append(kwargs["timeout"])
+        return "{}"
+
+    c = client(budget=40.0)
+    c._request = record
+    ask(c)
+
+    assert 0 < given[0] <= 40.0
+
+
+def test_one_deadline_covers_every_call_in_the_request():
+    """Not a fresh allowance per call, which is how six calls add up to a 504.
+
+    Moving the deadline earlier stands in for time passing, so nothing here has
+    to wait or tamper with the clock the test runner itself relies on.
     """
 
-    from app.llm.gemini import (
-        CALLS_PER_ANALYSIS,
-        PLATFORM_LIMIT_SECONDS,
-        RETRY_BUDGET_SECONDS,
-    )
+    given = []
+    c = client(budget=40.0)
 
-    assert RETRY_BUDGET_SECONDS * CALLS_PER_ANALYSIS < PLATFORM_LIMIT_SECONDS
-    assert client().retry_budget == RETRY_BUDGET_SECONDS
+    def takes_fifteen_seconds(**kwargs):
+        given.append(kwargs["timeout"])
+        c._deadline -= 15.0
+        return "{}"
+
+    c._request = takes_fifteen_seconds
+    ask(c)
+    ask(c)
+
+    assert given[0] == pytest.approx(40.0, abs=0.5)
+    assert given[1] == pytest.approx(25.0, abs=0.5)
+
+
+def test_no_call_starts_without_time_to_finish():
+    """A call that would be cut off still spends quota, so it is not made."""
+
+    calls = []
+    c = client(budget=40.0)
+    c._deadline = time.monotonic() + MIN_CALL_SECONDS - 1.0
+    c._request = lambda **kwargs: calls.append(kwargs) or "{}"
+
+    with pytest.raises(LLMError) as caught:
+        ask(c)
+
+    assert calls == []
+    assert "did not finish" in str(caught.value)
+    assert "recorded examples" in str(caught.value)
+
+
+def test_a_call_that_times_out_says_so_plainly():
+    """Found through the chain of causes, because the SDK wraps its timeouts."""
+
+    def hangs(**_):
+        try:
+            raise TimeoutError("read timed out")
+        except TimeoutError as inner:
+            raise RuntimeError("request failed") from inner
+
+    c = client(budget=40.0)
+    c._request = hangs
+
+    with pytest.raises(LLMError) as caught:
+        ask(c)
+
+    message = str(caught.value)
+    assert "did not finish" in message
+    assert "recorded examples" in message
+
+
+def test_a_used_up_daily_allowance_says_so_and_is_not_retried():
+    """The provider's own words are a JSON dump, and nobody visiting can act on it."""
+
+    calls = {"n": 0}
+
+    def exhausted(**_):
+        calls["n"] += 1
+        raise Exception(
+            "Error code: 429 - Rate limit exceeded for model gemini-3.5-flash "
+            "(limit: 20 requests per day on Free Tier)."
+        )
+
+    c = client(budget=40.0)
+    c._request = exhausted
+
+    with pytest.raises(LLMError) as caught:
+        ask(c)
+
+    message = str(caught.value)
+    assert calls["n"] == 1
+    assert "used up" in message
+    assert "tomorrow" in message
+    assert "recorded examples" in message
+    assert "Error code" not in message
+
+
+def test_the_budget_leaves_room_inside_the_platform_limit():
+    """A budget that can outlast the platform is not a budget."""
+
+    from app.llm.gemini import PLATFORM_LIMIT_SECONDS, REQUEST_BUDGET_SECONDS
+
+    assert REQUEST_BUDGET_SECONDS < PLATFORM_LIMIT_SECONDS
+    # The work around the calls (validation, the daily tally, the response)
+    # needs a little time too, after the last call has returned.
+    assert PLATFORM_LIMIT_SECONDS - REQUEST_BUDGET_SECONDS >= 10
+    assert client().budget == REQUEST_BUDGET_SECONDS
 
 
 def test_the_platform_limit_here_matches_the_one_vercel_is_told():

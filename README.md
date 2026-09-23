@@ -181,7 +181,9 @@ vercel --prod   # the public URL
 - **A model key is optional.** Without `GEMINI_API_KEY` the recorded examples still
   work and typed descriptions get a plain message. With one, anybody using the page
   spends your quota.
-- **Requests stop at 60 seconds.** Both model calls have to fit inside that.
+- **One deadline per request.** Every model call, repair and retry shares 100
+  seconds, inside the 120 the platform allows, so a slow reply ends in a plain
+  message rather than a 504.
 
 ## Where your data goes
 
@@ -196,8 +198,9 @@ vercel --prod   # the public URL
 Working: the full pipeline, the web page, retrieval, answerable questions, time
 figures, sharing, the n8n handover and the eval suite.
 
-Known issue: on the live site, typed descriptions can time out, because two model calls
-do not always fit in 60 seconds. The recorded examples are unaffected.
+The model is Gemini Flash-Lite. Measured on the real workload, a full analysis takes
+about 20 seconds. Flash was slower on the same work, and its free tier allows only 20
+requests a day.
 
 ## Licence
 
