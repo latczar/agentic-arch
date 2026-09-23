@@ -47,6 +47,27 @@ REQUEST_OPENERS = (
     "help me with",
 )
 
+# Bare imperatives, which is how people actually talk to a box with an AI
+# behind it. "create a pdf payslip for my outgoing accounts then email it to me"
+# matched nothing above, because everything above is a polite form, and it cost
+# a model call and a minute of somebody's afternoon to find that out.
+#
+# Each one needs a determiner after it, and that is the whole safety margin.
+# "Create a..." is asking for something to be made. "Check each invoice against
+# the sheet" is somebody describing their Friday in the imperative, and blocking
+# that is the loud failure this module exists to avoid. So: verbs that build,
+# and only where a thing is being named straight after them.
+BUILD_VERBS = ("create", "build", "make", "generate", "design", "develop", "set up")
+DETERMINERS = ("a", "an", "the", "me a", "me an")
+
+BUILD_REQUESTS = tuple(
+    f"{verb} {determiner} " for verb in BUILD_VERBS for determiner in DETERMINERS
+) + (
+    # No determiner needed. Nobody describes work they already do by hand by
+    # opening with the word automate.
+    "automate ",
+)
+
 # Nobody types a clean sentence into a box. "so can u help me check" walked
 # straight past a matcher anchored to the start, because of a leading "so" and
 # a "u", and produced a confident analysis of nothing. Stripped before matching
@@ -75,6 +96,13 @@ DESCRIPTION_MARKERS = (
     r"\bthen we\b",
     r"\bby hand\b",
     r"\bmanually\b",
+    # Doing one thing per item is what a repeated job looks like, and it rescues
+    # the imperative descriptions the build verbs below would otherwise catch:
+    # "create a row in the sheet for every application" is a step, not an order.
+    # It will occasionally let a real request through ("build a dashboard for
+    # each branch"), which is the direction this module prefers to be wrong in.
+    r"\bfor (every|each) \w+",
+    r"\bwhenever\b",
 )
 
 NUDGE = (
@@ -116,4 +144,4 @@ def looks_like_a_request(text: str) -> bool:
     if any(re.search(marker, cleaned) for marker in DESCRIPTION_MARKERS):
         return False
 
-    return cleaned.startswith(REQUEST_OPENERS)
+    return cleaned.startswith(REQUEST_OPENERS) or cleaned.startswith(BUILD_REQUESTS)

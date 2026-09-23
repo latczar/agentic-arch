@@ -288,3 +288,51 @@ def test_a_description_that_opens_casually_is_still_a_description():
         "so every Friday I go through the shared inbox and check each invoice"
     )
     assert not looks_like_a_request("ok so I check the portal each morning and download the leads")
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "create a pdf payslip for my outgoing accounts then email to me and message via whatsapp?",
+        "build a dashboard that shows me overdue rent",
+        "make an automation for chasing late invoices",
+        "generate a report of every viewing last month",
+        "set up a workflow that files the signed agreements",
+        "automate my Friday invoice run",
+        "design a system for tracking maintenance jobs",
+    ],
+)
+def test_a_bare_imperative_is_a_request_too(text):
+    """The second gap that shipped, found the same way as the first.
+
+    Every opener was a polite form, so anything phrased as a plain instruction
+    walked past. Which is how people actually talk to a box with an AI behind
+    it, so it was not an edge case: it was the common case.
+    """
+
+    assert looks_like_a_request(text)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Check each invoice against the payroll sheet, then file it.",
+        "Open the shared inbox and download anything with an attachment.",
+        "Make sure the totals match before entering them in the ledger.",
+        "Create a row in the sheet for every application that comes in.",
+    ],
+)
+def test_a_process_written_as_instructions_is_still_a_process(text):
+    """The cost of the fix above, and the reason it needs a determiner.
+
+    Plenty of people write down what they do as a list of instructions. Reading
+    every imperative as a request would block them, and blocking somebody who
+    was doing it right is the expensive mistake here.
+
+    The last one is the closest call in the suite: "create a row" opens exactly
+    like "create a dashboard". It stays quiet because a row in a sheet is a step
+    in the work, not a thing being asked for, and nothing short of understanding
+    the sentence tells those apart. If this one ever has to give, it gives.
+    """
+
+    assert not looks_like_a_request(text)
