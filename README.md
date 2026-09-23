@@ -235,9 +235,10 @@ separate scored suite:
 
 ```bash
 cd backend
-.venv/Scripts/python scripts/eval.py          # the safety net, free and instant
-.venv/Scripts/python scripts/eval.py replay   # the pipeline, recorded answers
-.venv/Scripts/python scripts/eval.py live     # the pipeline, real model
+.venv/Scripts/python scripts/eval.py             # the safety net, free and instant
+.venv/Scripts/python scripts/eval.py replay      # the pipeline, recorded answers
+.venv/Scripts/python scripts/eval.py playbooks   # retrieval, free and instant
+.venv/Scripts/python scripts/eval.py live        # the pipeline, real model
 ```
 
 It exits non-zero on a failure or a regression against the committed baseline, so it
@@ -394,6 +395,64 @@ npm run dev
 Then open http://localhost:5173. The two examples on the page are recorded, so they
 work with no API key.
 
+## Finding the article for the job
+
+Twelve written articles covering common back-office processes, one retrieved and
+shown beside your own process rather than instead of it. The commonest failure in
+this kind of conversation is not a wrong map, it is a map missing the step nobody
+thought to mention: somebody describing their rent run rarely says what happens
+when a payment is short, and the article says it out loud.
+
+It is a separate request from the analysis, on purpose. Retrieval takes about a
+second and needs no generation at all, so the article arrives while the slow half
+is still working, and stays on screen if the slow half never finishes.
+
+### Which retriever, and how we know
+
+Two of them, scored over the same labelled set of 22 queries, half of which must
+retrieve nothing at all:
+
+| retriever  | right | stayed quiet | total |
+| ---------- | ----- | ------------ | ----- |
+| bm25       | 10/14 | 8/8          | 18/22 |
+| embeddings | 13/14 | 8/8          | 21/22 |
+
+Embeddings win, which was not the expected result. Twelve documents with
+distinctive vocabulary is exactly where lexical search is supposed to hold its
+own. It loses on precisely the case the theory says it should: "we sort out the
+rent money each month" shares almost no words with the rent article, and BM25
+confidently hands back the tenancy renewal one instead, because renewals talk
+about rent constantly.
+
+Word matching stays as the fallback rather than the loser. It needs no key, no
+network and no build step, so the panel still appears on a fresh clone and on an
+afternoon when the endpoint is unwell.
+
+### No vector database
+
+Twelve articles at 768 dimensions is a 160KB file and a dot product loop in plain
+Python. A vector service here would be infrastructure to run, pay for and explain,
+in exchange for making a sub-millisecond loop faster. The vectors are built once
+by a script and committed, and a test compares a fingerprint of each article
+against the one that was embedded, because a stale vector is a wrong answer that
+looks exactly like a right one.
+
+This stops being the right call somewhere around fifty thousand chunks, which is
+considerably more than a written corpus is going to reach.
+
+### Both thresholds were swept, and neither is the best score
+
+| retriever  | best total    | chosen        | why                                |
+| ---------- | ------------- | ------------- | ---------------------------------- |
+| bm25       | 19/22 at 3.25 | 18/22 at 4.00 | never offers an irrelevant article |
+| embeddings | 21/22 at 0.61 | 21/22 at 0.63 | the same, and it costs nothing     |
+
+An article shown beside somebody's process is a claim that this is the job they
+are describing. Offering the payroll article to somebody automating parking
+permits makes the whole page look like it is guessing, where showing nothing costs
+them nothing at all. One point of total, traded for never being confidently wrong.
+The sweeps are in the source beside the constants.
+
 ## Answering its questions
 
 Every analysis ends with two or three things the description never said. Until now
@@ -544,7 +603,7 @@ cd backend
 .venv/Scripts/python -m pytest
 ```
 
-229 tests, none of which call an API. The model is substituted with a scripted
+277 tests, none of which call an API. The model is substituted with a scripted
 stand-in that returns deliberately broken output, so the repair loop can be tested
 precisely and for free.
 
