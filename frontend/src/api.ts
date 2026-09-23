@@ -5,6 +5,7 @@ import type {
   EffortInput,
   EffortSummary,
   Example,
+  PlaybookResponse,
   ProcessGraph,
   ShareCreated,
   SharedAnalysis,
@@ -43,6 +44,23 @@ export async function analyse(
   if (!response.ok) {
     throw new Error(`The server could not handle that (${response.status}).`);
   }
+  return response.json();
+}
+
+/**
+ * The closest article to what somebody described, or nothing.
+ *
+ * Its own request, fired alongside the analysis rather than after it. Retrieval
+ * takes about a second and needs no generation, so the article arrives while
+ * the slow half is still thinking and survives it failing altogether.
+ */
+export async function fetchPlaybook(description: string): Promise<PlaybookResponse> {
+  const response = await fetch("/api/playbook", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ description }),
+  });
+  if (!response.ok) throw new Error(`No article (${response.status}).`);
   return response.json();
 }
 

@@ -351,3 +351,86 @@ def test_a_failing_embedding_call_costs_the_panel_and_not_the_page():
 
     assert retriever.last_used == "bm25"
     assert found and found[0].playbook.id == "supplier-invoices"
+
+
+# --- Over the wire -----------------------------------------------------------
+
+
+@pytest.fixture
+def client(monkeypatch):
+    """A test client whose retriever cannot reach the network.
+
+    The endpoint builds a FallbackRetriever around the real embedding call. Left
+    alone that would make the suite depend on an API key, a network and
+    somebody else's uptime, so the embedding half is replaced with a function
+    that refuses and the word matcher answers instead. Which is also a fair
+    imitation of a fresh clone.
+    """
+
+    from fastapi.testclient import TestClient
+
+    from app import api
+    from app.playbooks import FallbackRetriever
+
+    def refuses(_):
+        raise RuntimeError("no network in tests")
+
+    monkeypatch.setattr(api, "_RETRIEVER", FallbackRetriever(embed_query=refuses))
+    return TestClient(api.app)
+
+
+def test_a_described_process_gets_its_article(client):
+    response = client.post(
+        "/api/playbook",
+        json={
+            "description": (
+                "Every Friday I go through the supplier invoices in the shared inbox "
+                "and pay them from the business account."
+            )
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["match"]["id"] == "supplier-invoices"
+    assert body["match"]["body"]
+    assert body["retriever"] == "bm25"
+
+
+def test_work_the_corpus_does_not_cover_gets_nothing(client):
+    """Not an error, and not an apology. Just no panel."""
+
+    response = client.post(
+        "/api/playbook",
+        json={"description": "I restock the vending machine in reception every Tuesday."},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["match"] is None
+
+
+def test_a_description_too_short_to_mean_anything_is_refused(client):
+    response = client.post("/api/playbook", json={"description": "invoices"})
+    assert response.status_code == 422
+
+
+def test_a_retriever_that_throws_costs_the_panel_and_not_the_request(client, monkeypatch):
+    """Retrieval is an extra. It must never be the reason the page breaks."""
+
+    from app import api
+
+    class Exploding:
+        last_used = ""
+
+        def search(self, *_, **__):
+            raise RuntimeError("everything is on fire")
+
+    monkeypatch.setattr(api, "_RETRIEVER", Exploding())
+
+    response = client.post(
+        "/api/playbook",
+        json={"description": "Every Friday I go through the supplier invoices and pay them."},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["match"] is None

@@ -26,6 +26,11 @@ MODEL = "gemini-embedding-001"
 # and makes the committed vector file four times smaller.
 DIMENSIONS = 768
 
+# How long one embedding call may take before the word matcher takes over.
+# Generous against a healthy endpoint, which answers in about a second, and
+# short enough that nobody waits on a sick one.
+TIMEOUT_MS = 8000
+
 
 # Held for the life of the process, which is not only an optimisation.
 #
@@ -52,7 +57,17 @@ def _client():
     except ImportError as exc:  # pragma: no cover - install-time problem
         raise LLMError("The google-genai package is not installed.") from exc
 
-    _CACHED = genai.Client(api_key=key)
+    # Bounded, because retrieval is an addition to the page and the page must
+    # not wait on it indefinitely. Without this a hung connection is not an
+    # exception, so nothing catches it, the fallback never runs and the request
+    # simply never answers. Found on a machine where Python was hanging on IPv6
+    # while curl fell back to IPv4 in under a second.
+    from google.genai import types
+
+    _CACHED = genai.Client(
+        api_key=key,
+        http_options=types.HttpOptions(timeout=TIMEOUT_MS),
+    )
     return _CACHED
 
 

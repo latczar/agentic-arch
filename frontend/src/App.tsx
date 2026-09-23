@@ -7,17 +7,20 @@ import {
   createShare,
   download,
   fetchExamples,
+  fetchPlaybook,
   fetchShare,
   shareIdFromUrl,
 } from "./api";
 import { Diagram } from "./components/Diagram";
 import { Effort } from "./components/Effort";
+import { Playbook } from "./components/Playbook";
 import { Verdicts } from "./components/Verdicts";
 import type {
   AnalyseResponse,
   Answer,
   EffortInput,
   Example,
+  PlaybookResponse,
   SharedAnalysis,
 } from "./types";
 
@@ -35,6 +38,10 @@ export default function App() {
   const [exporting, setExporting] = useState(false);
   // "copied" or "downloaded", so the message can say what actually happened.
   const [handoff, setHandoff] = useState<"copied" | "downloaded" | null>(null);
+
+  // The retrieved article, if the corpus covers this job. Kept apart from the
+  // analysis because it arrives separately and outlives it failing.
+  const [playbook, setPlaybook] = useState<PlaybookResponse | null>(null);
 
   // Keyed by the question text, because ids are regenerated on every run and an
   // answer has to outlive the analysis that prompted it. Answers accumulate:
@@ -83,6 +90,16 @@ export default function App() {
     setSelected(null);
     setShareUrl(null);
     setShared(null);
+    setPlaybook(null);
+
+    // Its own request, deliberately not awaited with the others. Retrieval takes
+    // about a second and needs no generation, so the article lands while the
+    // slow half is still working and stays on screen if that half never
+    // finishes at all, which on a bad afternoon is the only thing that arrives.
+    fetchPlaybook(description)
+      .then(setPlaybook)
+      .catch(() => setPlaybook(null));
+
     try {
       // Answering means going to the model. A recorded example replays one fixed
       // response, so replaying it would hand back the identical analysis and
@@ -178,6 +195,7 @@ export default function App() {
 
   function useExample(example: Example) {
     setDescription(example.description);
+    setPlaybook(null);
     setAnswers({}); // A different process, so nothing said about the last one holds.
     setUsedAnswers([]);
     // Recorded examples replay from disk, so they work with no API key and
@@ -271,6 +289,15 @@ export default function App() {
       )}
 
       {error && <div className="error">{error}</div>}
+
+      {/* The whole reason retrieval is its own request. When the model times out
+          there is no analysis to hang this off, and an article about the job
+          somebody just described is a great deal better than an error alone. */}
+      {!result?.graph && playbook?.match && (
+        <div className="results__panel results__panel--alone">
+          <Playbook match={playbook.match} retriever={playbook.retriever} />
+        </div>
+      )}
 
       {repairs.length > 0 && (
         <details className="repairs">
@@ -403,6 +430,11 @@ export default function App() {
                 initial={shared?.effort ?? null}
                 onChange={handleEffort}
               />
+            )}
+
+            {/* Before the questions, because it often answers one of them. */}
+            {playbook?.match && (
+              <Playbook match={playbook.match} retriever={playbook.retriever} />
             )}
 
             {result.graph.questions.length > 0 && (

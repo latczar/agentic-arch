@@ -79,6 +79,19 @@ export interface Blocker {
   workaround: string | null;
 }
 
+/** A known-good shape for the job being described, if the corpus covers it. */
+export interface PlaybookMatch {
+  id: string;
+  title: string;
+  body: string;
+  score: number;
+}
+
+export interface PlaybookResponse {
+  match: PlaybookMatch | null;
+  retriever: string;
+}
+
 /** A reply to one of the questions a previous run asked. Sent back as fact. */
 export interface Answer {
   question: string;

@@ -29,6 +29,8 @@ from app.schemas.assessment import AutomationPlan
 from app.schemas.effort import EffortInput, EffortSummary, summarise_effort
 from app.shape import NUDGE, looks_like_a_request
 from app.share import ShareTooLarge, open_store
+from app.embed import embed
+from app.playbooks import FallbackRetriever
 from app.schemas.process import Answer, ProcessGraph
 
 EXAMPLES = [
@@ -238,6 +240,73 @@ def _describe(attempts) -> list[AttemptInfo]:
 class ExportRequest(BaseModel):
     graph: ProcessGraph
     plan: AutomationPlan | None = None
+
+
+class PlaybookRequest(BaseModel):
+    description: str = Field(min_length=20, max_length=4000)
+
+
+class PlaybookMatch(BaseModel):
+    id: str
+    title: str
+    body: str
+    score: float
+
+
+class PlaybookResponse(BaseModel):
+    match: PlaybookMatch | None = None
+    # Which retriever answered, since the fallback means it is not always the
+    # same one and the page says so rather than implying it was.
+    retriever: str = ""
+
+
+# Built once. The corpus is read off disk and the vectors parsed out of a 160KB
+# file, which is cheap but not free, and on a serverless platform it would
+# otherwise happen on every request in the same warm process.
+_RETRIEVER: FallbackRetriever | None = None
+
+
+def _retriever() -> FallbackRetriever:
+    global _RETRIEVER
+    if _RETRIEVER is None:
+        _RETRIEVER = FallbackRetriever(embed_query=embed)
+    return _RETRIEVER
+
+
+@app.post("/api/playbook", response_model=PlaybookResponse)
+def playbook(request: PlaybookRequest) -> PlaybookResponse:
+    """The closest known-good shape for the job being described, if there is one.
+
+    Deliberately its own endpoint rather than part of the analysis. Retrieval
+    takes about a second and needs no generation, so on an afternoon when the
+    model is timing out this still answers, and the page can show something
+    useful while the slow half is still thinking. Keeping them together would
+    have tied the fast, reliable half to the slow, flaky one for no gain.
+
+    Returning no match is an ordinary answer and the right one for any process
+    the corpus does not cover.
+    """
+
+    try:
+        found = _retriever().search(request.description, limit=1)
+    except Exception:
+        # An article is an extra. Losing it should cost the panel and nothing
+        # else, so this never turns into an error on the page.
+        return PlaybookResponse(match=None, retriever="")
+
+    if not found:
+        return PlaybookResponse(match=None, retriever=_retriever().last_used)
+
+    best = found[0]
+    return PlaybookResponse(
+        match=PlaybookMatch(
+            id=best.playbook.id,
+            title=best.playbook.title,
+            body=best.playbook.body,
+            score=round(best.score, 3),
+        ),
+        retriever=_retriever().last_used,
+    )
 
 
 @app.post("/api/export/n8n")

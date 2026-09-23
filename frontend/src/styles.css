@@ -509,6 +509,81 @@ button:disabled {
   color: var(--muted);
 }
 
+/* The retrieved article ---------------------------------------------------- */
+
+.playbook {
+  margin-top: 28px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.results__panel--alone {
+  max-width: 640px;
+  margin: 20px auto 0;
+}
+
+.playbook__head h3 {
+  margin: 2px 0 0;
+  font-size: 1rem;
+}
+
+.playbook__label {
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* Says plainly that this is a library article about the job in general, not a
+   reading of what the person wrote. Conflating the two is the failure mode of
+   every retrieval feature ever shipped. */
+.playbook__caveat {
+  margin: 8px 0 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.playbook summary {
+  margin-top: 10px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--accent);
+}
+
+.playbook__body {
+  margin-top: 10px;
+  font-size: 0.85rem;
+}
+
+.playbook__body h4 {
+  margin: 14px 0 4px;
+  font-size: 0.85rem;
+}
+
+.playbook__body ol,
+.playbook__body ul {
+  margin: 4px 0;
+  padding-left: 20px;
+  color: var(--muted);
+}
+
+.playbook__body li {
+  margin-top: 3px;
+}
+
+.playbook__body p {
+  margin: 6px 0;
+  color: var(--muted);
+}
+
+.playbook__provenance {
+  margin: 10px 0 0;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
 /* Questions --------------------------------------------------------------- */
 
 .questions {
