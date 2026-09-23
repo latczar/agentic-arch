@@ -5,105 +5,38 @@
 **[Try it](https://ai-auto-architect.vercel.app).** Two worked examples, no sign-up, no API key.
 
 You tell it what you do by hand. It works out the steps, judges which ones a computer
-could take over, and, the part that matters, flags where a human has to stay in the
-loop and why. Then it exports a workflow scaffold you can import into n8n.
+could take over, and, the part that matters, refuses to call a step safe when that
+step moves money, cannot be undone, or carries legal weight. The refusal lives in
+code the model cannot argue with, and there is a scored suite proving it holds.
 
 ![The web interface, showing a supplier payment process with two steps flagged as needing a human](docs/screenshot.png)
 
 ---
 
-## What it looks like
+## The one rule
 
-```
-$ python scripts/analyse.py "Every morning I go through my emails looking for
-  invoices. When I find one I download the PDF attachment, read the total off it,
-  and type that into our Google Sheet. Then I message accounting on Slack to say
-  it's in. If it's a big one, over five thousand pounds, I check with my manager
-  first before I put it through."
+Ask a chatbot to design you an automation and it will cheerfully design one that
+emails a client, releases a deposit, or deletes the evidence afterwards. It is
+agreeable by construction, and agreeable is the wrong disposition for this job.
 
-Step 1 of 2: mapping the process
-  attempt 1: accepted
+This refuses, and the refusal is not written in the prompt. A step that moves money,
+cannot be undone, or carries legal weight can never come back marked safe to run
+unattended, whatever the model concluded. The model's answer is an input to that
+decision rather than the decision itself. See `NEVER_FULLY_AUTOMATIC` and
+`mandatory_risks` in [`assessment.py`](backend/app/schemas/assessment.py).
 
-INVOICE PROCESSING
-Process inbound invoice emails every morning by downloading PDFs, logging them in a
-Google Sheet, and notifying accounting, with manager sign-off for large invoices.
+The same split runs through everything else here. The time figures come from the
+person doing the work rather than the model, because one invented number discredits
+every sound number sitting next to it. The n8n export emits a real node only where
+somebody named the system, so "our Google Sheet" becomes a Sheets node while "the
+spreadsheet" stays a labelled placeholder.
 
-Trigger: Every morning I go through my emails looking for invoices. (schedule)
-Systems: Email, Google Sheet, Slack
+**The model understands. The code checks.** Everything below is that sentence applied
+somewhere specific.
 
-  [ ] check_emails  (read)
-      Check emails for invoices
-      assumed: The user reviews emails in an email client like Gmail or Outlook.
-      -> download_pdf
+## When nothing stops for a human
 
-  [ ] download_pdf  (write)
-      Download the PDF attachment
-      repeats for: each PDF attachment on the email
-      -> read_total
-
-  [ ] read_total  (extract)
-      Read the total off the PDF
-      -> check_amount_size
-
-  [?] check_amount_size  (decision)
-      Check if invoice is over five thousand pounds
-      -> manager_check     if amount is over five thousand pounds
-      -> enter_into_sheet  if amount is five thousand pounds or less
-
-  [ ] manager_check  (judgement)
-      Check with manager
-      -> enter_into_sheet
-
-  [ ] enter_into_sheet  (write)
-      Type total into Google Sheet
-      -> notify_accounting
-
-  [ ] notify_accounting  (notify)
-      Message accounting on Slack
-
-
-Step 2 of 2: judging what can be automated
-  attempt 1: accepted
-
-Most of the invoice collection, logging, and notification can be fully automated,
-leaving only the manager's sign-off on large invoices to be handled by a person.
-
-[ auto  ]  check_emails
-            A computer can look for new emails and spot incoming invoices without
-            you needing to do it yourself.
-
-[ auto  ]  download_pdf
-            An automated rule can grab and save the PDF attachment from the email
-            the moment it arrives.
-
-[ auto  ]  read_total
-            Optical character recognition can easily read the total amount due
-            straight off the invoice PDF.
-
-[ auto  ]  check_amount_size
-            A simple arithmetic check can instantly tell whether the invoice total
-            is greater than five thousand pounds.
-
-[  you  ]  manager_check
-            This is a person checking and signing something off, which is the point
-            of the step.
-            risks: subjective_judgement
-
-[ auto  ]  enter_into_sheet
-            A script can type the invoice total directly into your Google Sheet
-            without any manual copying.
-
-[ auto  ]  notify_accounting
-            An automated message can be sent straight to accounting on Slack as
-            soon as the invoice is logged.
-
-Runs on its own: 6   Needs a guard: 0   Stays with you: 1   Unclear: 0
-Start with: check_emails
-```
-
-### And when nothing stops for a human
-
-The interesting case. Same tool, a process with no approval step in it:
+A process with no approval step anywhere in it, which is where this earns its keep:
 
 ```
 $ python scripts/analyse.py "Every Friday I go through the supplier invoices
@@ -159,119 +92,6 @@ description never mentioned an approval step, so it asked.
 
 It did not notice that deleting an email cannot be undone. That one was caught in
 code, which is why it says so.
-
----
-
-## The web version
-
-The same pipeline behind a page: type a description, get the process as a diagram
-with each step colour coded, and a panel explaining every verdict. Steps needing a
-guard are listed first, because a list that opens with six green rows buries the one
-thing the reader has to decide about.
-
-```bash
-# API
-cd backend
-.venv/Scripts/python -m uvicorn app.api:app --port 8000
-
-# Front end, in a second terminal
-cd frontend
-npm install
-npm run dev
-```
-
-Then open http://localhost:5173. The two examples on the page are recorded, so they
-work with no API key.
-
-## How much time it takes
-
-![The time panel, showing 39.1 hours a month with 36.2 of them automatable](docs/effort.png)
-
-You tell it how often you do the process and roughly how long each step takes. It
-multiplies.
-
-That sounds trivial and it is the point. A model will happily report that a process
-takes 11.5 hours a month and is 71% automatable, and those figures are invented.
-Anyone who stops to ask where they came from discounts the whole output, including
-the parts that were sound. The two facts here come from the person doing the work,
-so the arithmetic is theirs.
-
-It also earns its place as interface. Typing "I do this twenty times a week and it
-takes six minutes" tends to be the moment someone realises they have a problem worth
-solving.
-
-Steps needing a guard count as still needing you, since an approval is still your
-attention. Approving takes less time than doing, so the real saving sits above the
-figure shown rather than below it. Understating is the honest direction to be wrong
-in.
-
-## Sharing it
-
-The **Share** button stores the analysis and gives you a link. Whoever you send it
-to sees the process, the verdicts and your time figures, without needing the tool or
-a key.
-
-That matters more than it sounds for something meant to start conversations. The
-person who decides whether to automate a process is usually not the person who does
-it, and "have a look at this" beats a screenshot.
-
-Three things the storage has to get right, because a shared analysis describes how
-somebody's business actually runs:
-
-- **Identifiers are unguessable.** Sequential ids would let anyone walk the table and
-  read every process ever analysed.
-- **Shares expire after 30 days.** An unlisted link that lives forever is a slow
-  leak, and nobody goes back to tidy up. Expired rows are swept on the way past, so
-  nothing needs scheduling.
-- **Payloads are capped.** A public write endpoint with no limit is somebody else's
-  free storage.
-
-The interface says plainly that the link is readable by anyone holding it, and warns
-against sharing one containing customer names. Unlisted is not the same as private.
-
-Two stores sit behind one interface, because the right answer changes with where it
-runs. On a machine with a disk it is SQLite: boring, no configuration, no account,
-and a handful of small rows does not justify a database server. Deployed, there is no
-disk that survives a request, so the same interface is served by blob storage
-instead. `open_store()` picks from the environment and nothing above it knows which
-it got.
-
-Both go through one function that builds the record, so the id length, the expiry and
-the size cap cannot drift apart between them. Those three are the security
-properties, and an implementation quietly enforcing its own version of them is how a
-rule becomes a suggestion.
-
-The alternative was putting the whole analysis inside the link, which needs no
-storage at all. Measured before choosing: an analysis compresses to about 2,200
-characters, and the only remaining thing big enough to cut is the explanation text,
-which is the product. A tidy link won.
-
-## Handing it over
-
-The **Export to n8n** button produces a workflow file that imports cleanly. It is a
-scaffold, not a running automation, and it says so on every node.
-
-That is deliberate. Guessing that someone means Gmail rather than Outlook or IMAP,
-then inventing the credentials and field mappings to match, produces a file that
-imports and fails in ways that are tedious to unpick. A skeleton with honest
-placeholders beats a confident wrong answer.
-
-What it does get right:
-
-- The shape. Steps, branches, and the order they run in.
-- Decisions become real IF nodes, not comments.
-- Approvals become real Wait nodes, so the pause is in the workflow rather than in a
-  paragraph somebody has to remember to read.
-- A threshold approval becomes an IF on the threshold, so "only above 5,000" is
-  encoded rather than described. This is what the structured threshold on a control
-  is for.
-- Every placeholder carries a note saying what to replace it with.
-
-From the command line:
-
-```bash
-.venv/Scripts/python scripts/analyse.py --replay --export-n8n workflow.json
-```
 
 ## How it works
 
@@ -377,39 +197,6 @@ Excel and Sheets are a real choice nobody has made. See
 both directions of the risk detector, and keeps known gaps visible instead of quietly
 deleting them. See [Measuring it](#measuring-it).
 
-## Try it
-
-No API key needed. Two recorded cases ship with the repo:
-
-```bash
-cd backend
-python -m venv .venv
-.venv/Scripts/python -m pip install -r requirements.txt
-
-.venv/Scripts/python scripts/analyse.py --replay
-.venv/Scripts/python scripts/analyse.py --replay payment-no-approval
-```
-
-To run it against your own description you need a free
-[Google AI Studio](https://aistudio.google.com) key:
-
-```bash
-setx GEMINI_API_KEY "your-key"
-# open a new terminal, then:
-.venv/Scripts/python scripts/analyse.py "describe something repetitive you do"
-```
-
-## Tests
-
-```bash
-cd backend
-.venv/Scripts/python -m pytest
-```
-
-144 tests, none of which call an API. The model is substituted with a scripted
-stand-in that returns deliberately broken output, so the repair loop can be tested
-precisely and for free.
-
 ## Measuring it
 
 Tests answer whether the code does what it was told. They cannot answer whether the
@@ -467,13 +254,243 @@ keys and reports as happily as you release funds. They are now matched as ordere
 phrases, which is why "note the credit check" stays quiet: same two words, wrong
 order, different thing.
 
-## Status
+## What it looks like
 
-Working: the two-stage pipeline, validation, repair, record/replay, a web front end
-with the process rendered as a diagram, the time arithmetic, shareable links, export
-to n8n, and a scored eval suite with committed baselines.
+```
+$ python scripts/analyse.py "Every morning I go through my emails looking for
+  invoices. When I find one I download the PDF attachment, read the total off it,
+  and type that into our Google Sheet. Then I message accounting on Slack to say
+  it's in. If it's a big one, over five thousand pounds, I check with my manager
+  first before I put it through."
 
-Live at [ai-auto-architect.vercel.app](https://ai-auto-architect.vercel.app).
+Step 1 of 2: mapping the process
+  attempt 1: accepted
+
+INVOICE PROCESSING
+Process inbound invoice emails every morning by downloading PDFs, logging them in a
+Google Sheet, and notifying accounting, with manager sign-off for large invoices.
+
+Trigger: Every morning I go through my emails looking for invoices. (schedule)
+Systems: Email, Google Sheet, Slack
+
+  [ ] check_emails  (read)
+      Check emails for invoices
+      assumed: The user reviews emails in an email client like Gmail or Outlook.
+      -> download_pdf
+
+  [ ] download_pdf  (write)
+      Download the PDF attachment
+      repeats for: each PDF attachment on the email
+      -> read_total
+
+  [ ] read_total  (extract)
+      Read the total off the PDF
+      -> check_amount_size
+
+  [?] check_amount_size  (decision)
+      Check if invoice is over five thousand pounds
+      -> manager_check     if amount is over five thousand pounds
+      -> enter_into_sheet  if amount is five thousand pounds or less
+
+  [ ] manager_check  (judgement)
+      Check with manager
+      -> enter_into_sheet
+
+  [ ] enter_into_sheet  (write)
+      Type total into Google Sheet
+      -> notify_accounting
+
+  [ ] notify_accounting  (notify)
+      Message accounting on Slack
+
+
+Step 2 of 2: judging what can be automated
+  attempt 1: accepted
+
+Most of the invoice collection, logging, and notification can be fully automated,
+leaving only the manager's sign-off on large invoices to be handled by a person.
+
+[ auto  ]  check_emails
+            A computer can look for new emails and spot incoming invoices without
+            you needing to do it yourself.
+
+[ auto  ]  download_pdf
+            An automated rule can grab and save the PDF attachment from the email
+            the moment it arrives.
+
+[ auto  ]  read_total
+            Optical character recognition can easily read the total amount due
+            straight off the invoice PDF.
+
+[ auto  ]  check_amount_size
+            A simple arithmetic check can instantly tell whether the invoice total
+            is greater than five thousand pounds.
+
+[  you  ]  manager_check
+            This is a person checking and signing something off, which is the point
+            of the step.
+            risks: subjective_judgement
+
+[ auto  ]  enter_into_sheet
+            A script can type the invoice total directly into your Google Sheet
+            without any manual copying.
+
+[ auto  ]  notify_accounting
+            An automated message can be sent straight to accounting on Slack as
+            soon as the invoice is logged.
+
+Runs on its own: 6   Needs a guard: 0   Stays with you: 1   Unclear: 0
+Start with: check_emails
+```
+
+## The web version
+
+The same pipeline behind a page: type a description, get the process as a diagram
+with each step colour coded, and a panel explaining every verdict. Steps needing a
+guard are listed first, because a list that opens with six green rows buries the one
+thing the reader has to decide about.
+
+```bash
+# API
+cd backend
+.venv/Scripts/python -m uvicorn app.api:app --port 8000
+
+# Front end, in a second terminal
+cd frontend
+npm install
+npm run dev
+```
+
+Then open http://localhost:5173. The two examples on the page are recorded, so they
+work with no API key.
+
+## How much time it takes
+
+![The time panel, showing 39.1 hours a month with 36.2 of them automatable](docs/effort.png)
+
+You tell it how often you do the process and roughly how long each step takes. It
+multiplies.
+
+That sounds trivial and it is the point. A model will happily report that a process
+takes 11.5 hours a month and is 71% automatable, and those figures are invented.
+Anyone who stops to ask where they came from discounts the whole output, including
+the parts that were sound. The two facts here come from the person doing the work,
+so the arithmetic is theirs.
+
+It also earns its place as interface. Typing "I do this twenty times a week and it
+takes six minutes" tends to be the moment someone realises they have a problem worth
+solving.
+
+Steps needing a guard count as still needing you, since an approval is still your
+attention. Approving takes less time than doing, so the real saving sits above the
+figure shown rather than below it. Understating is the honest direction to be wrong
+in.
+
+## Sharing it
+
+The **Share** button stores the analysis and gives you a link. Whoever you send it
+to sees the process, the verdicts and your time figures, without needing the tool or
+a key.
+
+That matters more than it sounds for something meant to start conversations. The
+person who decides whether to automate a process is usually not the person who does
+it, and "have a look at this" beats a screenshot.
+
+Three things the storage has to get right, because a shared analysis describes how
+somebody's business actually runs:
+
+- **Identifiers are unguessable.** Sequential ids would let anyone walk the table and
+  read every process ever analysed.
+- **Shares expire after 30 days.** An unlisted link that lives forever is a slow
+  leak, and nobody goes back to tidy up. Expired rows are swept on the way past, so
+  nothing needs scheduling.
+- **Payloads are capped.** A public write endpoint with no limit is somebody else's
+  free storage.
+
+The interface says plainly that the link is readable by anyone holding it, and warns
+against sharing one containing customer names. Unlisted is not the same as private.
+
+Two stores sit behind one interface, because the right answer changes with where it
+runs. On a machine with a disk it is SQLite: boring, no configuration, no account,
+and a handful of small rows does not justify a database server. Deployed, there is no
+disk that survives a request, so the same interface is served by blob storage
+instead. `open_store()` picks from the environment and nothing above it knows which
+it got.
+
+Both go through one function that builds the record, so the id length, the expiry and
+the size cap cannot drift apart between them. Those three are the security
+properties, and an implementation quietly enforcing its own version of them is how a
+rule becomes a suggestion.
+
+The alternative was putting the whole analysis inside the link, which needs no
+storage at all. Measured before choosing: an analysis compresses to about 2,200
+characters, and the only remaining thing big enough to cut is the explanation text,
+which is the product. A tidy link won.
+
+## Handing it over
+
+The **Copy for n8n** button puts a workflow on the clipboard, ready to paste onto an
+n8n canvas. Browsers that refuse clipboard access get a downloaded file instead, and
+the page says which of the two happened rather than leaving somebody looking at a
+button that appeared to do nothing.
+
+It is a skeleton, not a running automation, and it says so on every node. Treat it as
+the shape of the thing, not the thing.
+
+That is deliberate. Guessing that someone means Gmail rather than Outlook or IMAP,
+then inventing the credentials and field mappings to match, produces a file that
+imports and fails in ways that are tedious to unpick. A skeleton with honest
+placeholders beats a confident wrong answer.
+
+What it does get right:
+
+- The shape. Steps, branches, and the order they run in.
+- Decisions become real IF nodes, not comments.
+- Approvals become real Wait nodes, so the pause is in the workflow rather than in a
+  paragraph somebody has to remember to read.
+- A threshold approval becomes an IF on the threshold, so "only above 5,000" is
+  encoded rather than described. This is what the structured threshold on a control
+  is for.
+- Every placeholder carries a note saying what to replace it with.
+
+From the command line:
+
+```bash
+.venv/Scripts/python scripts/analyse.py --replay --export-n8n workflow.json
+```
+
+## Try it
+
+No API key needed. Two recorded cases ship with the repo:
+
+```bash
+cd backend
+python -m venv .venv
+.venv/Scripts/python -m pip install -r requirements.txt
+
+.venv/Scripts/python scripts/analyse.py --replay
+.venv/Scripts/python scripts/analyse.py --replay payment-no-approval
+```
+
+To run it against your own description you need a free
+[Google AI Studio](https://aistudio.google.com) key:
+
+```bash
+setx GEMINI_API_KEY "your-key"
+# open a new terminal, then:
+.venv/Scripts/python scripts/analyse.py "describe something repetitive you do"
+```
+
+## Tests
+
+```bash
+cd backend
+.venv/Scripts/python -m pytest
+```
+
+207 tests, none of which call an API. The model is substituted with a scripted
+stand-in that returns deliberately broken output, so the repair loop can be tested
+precisely and for free.
 
 ## Deploying it
 
@@ -509,6 +526,14 @@ quota someone else gets to spend.
 Built with Python, Pydantic and Gemini on the back end, React and React Flow on the
 front. British English throughout, and the example
 figures are in pounds, because that is who it is for.
+
+## Status
+
+Working: the two-stage pipeline, validation, repair, record/replay, a web front end
+with the process rendered as a diagram, the time arithmetic, shareable links, export
+to n8n, and a scored eval suite with committed baselines.
+
+Live at [ai-auto-architect.vercel.app](https://ai-auto-architect.vercel.app).
 
 ## Licence
 
