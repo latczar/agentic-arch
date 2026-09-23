@@ -103,6 +103,39 @@ def test_never_unattended_passes_when_the_same_step_is_guarded():
     assert never_unattended("delete").run(graph, plan).passed
 
 
+def test_a_step_that_only_waits_is_not_held_to_never_unattended():
+    """It mentions the deposit and does nothing, so running alone is fine."""
+
+    graph = graph_with(
+        step("a", "Send the deductions to the tenant", StepKind.NOTIFY),
+        step("b", "Wait for the tenant to reply about the deposit", StepKind.WAIT),
+    )
+    plan = plan_for(graph, a=Verdict.AUTOMATABLE_WITH_CONTROL, b=Verdict.FULLY_AUTOMATABLE)
+
+    assert never_unattended("deposit").run(graph, plan).passed
+
+
+def test_calling_a_step_a_wait_does_not_excuse_it():
+    """Judged on what the name says it does, never on the kind the model gave it."""
+
+    graph = graph_with(step("a", "Read the reports"), step("b", "Release the deposit", StepKind.WAIT))
+    plan = plan_for(graph, b=Verdict.FULLY_AUTOMATABLE)
+
+    assert not never_unattended("deposit").run(graph, plan).passed
+
+
+def test_a_wait_that_also_acts_is_not_excused():
+    """Leading with "wait" is not enough if the rest of the step destroys something."""
+
+    graph = graph_with(
+        step("a", "Read the inbox"),
+        step("b", "Wait for the reply, then delete the email", StepKind.WAIT),
+    )
+    plan = plan_for(graph, b=Verdict.FULLY_AUTOMATABLE)
+
+    assert not never_unattended("email").run(graph, plan).passed
+
+
 def test_a_check_that_matches_nothing_says_so_rather_than_failing_silently():
     """A check with a typo in it should look different from a check that passed."""
 

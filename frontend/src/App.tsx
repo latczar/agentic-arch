@@ -538,6 +538,11 @@ export default function App() {
 
                 {result.graph.questions.map((question) => (
                   <div key={question.id} className="question">
+                    {/* Said out loud, like the overrides. A question the model
+                        never asked should not pass itself off as one it did. */}
+                    {question.added_by_us && (
+                      <span className="question__ours">Asked by our checks, not the model</span>
+                    )}
                     <p className="question__text">{question.question}</p>
                     <p className="question__why">{question.why_it_matters}</p>
 

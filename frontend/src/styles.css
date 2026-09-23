@@ -720,6 +720,17 @@ button:disabled {
   font-size: 0.9rem;
 }
 
+/* Same register as the playbook label: small, uppercase, and in the guard
+   colour, because it is our checks speaking rather than the model. */
+.question__ours {
+  display: inline-block;
+  margin-bottom: 3px;
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--guard);
+}
+
 .question__why {
   margin: 2px 0 0;
   color: var(--muted);

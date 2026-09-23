@@ -179,6 +179,50 @@ SHOULD_FIRE: list[GuardCase] = [
             "The case is here so the trade off is recorded rather than forgotten."
         ),
     ),
+    # Added after the live eval kept catching judgement being waved through.
+    # Worded differently from the eval cases on purpose: a rule that only
+    # passes the sentence that exposed it has been fitted, not fixed.
+    GuardCase(
+        id="decides-on-a-vendors-answer",
+        step_name="Work out whether the vendor has accepted the offer",
+        kind="decision",
+        expect=frozenset({RiskFlag.SUBJECTIVE_JUDGEMENT}),
+        why="What a vendor meant by their reply is interpretation, and the sale moves on it.",
+    ),
+    GuardCase(
+        id="decides-on-a-landlords-reply",
+        step_name="Check the landlord's reply to see if they want the quote",
+        kind="decision",
+        expect=frozenset({RiskFlag.SUBJECTIVE_JUDGEMENT}),
+        why=(
+            "The same, with a possessive in it. \"landlord's\" used to slip past "
+            "every word list, because that is how people actually write."
+        ),
+    ),
+    GuardCase(
+        id="judges-wear-and-tear",
+        step_name="Assess whether the carpet stains are wear and tear",
+        kind="read",
+        expect=frozenset({RiskFlag.SUBJECTIVE_JUDGEMENT}),
+        why=(
+            "The question every deposit dispute turns on. Labelled a read here, "
+            "because the rule has to hold whatever kind the model gave the step."
+        ),
+    ),
+    GuardCase(
+        id="a-step-the-map-calls-judgement",
+        step_name="Decide whether the repair can wait until Monday",
+        kind="judgement",
+        expect=frozenset({RiskFlag.SUBJECTIVE_JUDGEMENT}),
+        why="The map said a person decides this. Caution from the model is taken at its word.",
+    ),
+    GuardCase(
+        id="drafts-deductions",
+        step_name="Draft the list of deductions for the tenant",
+        kind="write",
+        expect=frozenset({RiskFlag.LEGAL_OR_COMPLIANCE}),
+        why="A proposed deduction from a deposit is a claim the tenant can take to adjudication.",
+    ),
 ]
 
 
@@ -281,6 +325,42 @@ SHOULD_STAY_QUIET: list[GuardCase] = [
         expect=frozenset(),
         why="Why 'balance' could never be a word on its own either.",
     ),
+    # The counterweights to the judgement rules above.
+    GuardCase(
+        id="reads-a-tenants-reply",
+        step_name="Read the tenant's reply to the renewal email",
+        kind="read",
+        expect=frozenset(),
+        why="Reading the reply is not deciding what it means. Only the decision is judgement.",
+    ),
+    GuardCase(
+        id="branches-on-a-figure",
+        step_name="Check whether the invoice is over five thousand pounds",
+        kind="decision",
+        expect=frozenset(),
+        why="A decision on a number is a rule. Only decisions on what somebody said need a person.",
+    ),
+    GuardCase(
+        id="logs-reported-damage",
+        step_name="Log the damage the tenant reported",
+        kind="write",
+        expect=frozenset(),
+        why="Recording a report of damage judges nothing.",
+    ),
+    GuardCase(
+        id="records-agreed-deductions",
+        step_name="Record the agreed deductions in the ledger",
+        kind="write",
+        expect=frozenset(),
+        why="Writing down deductions somebody already agreed to is bookkeeping.",
+    ),
+    GuardCase(
+        id="reviews-without-judging",
+        step_name="Review the inventory before the check-in",
+        kind="read",
+        expect=frozenset(),
+        why="An assessing verb alone is not enough. It has to be judging the condition of something.",
+    ),
 ]
 
 GUARD_CASES: list[GuardCase] = SHOULD_FIRE + SHOULD_STAY_QUIET
@@ -361,7 +441,16 @@ PIPELINE_CASES: list[PipelineCase] = [
             has_a_decision(),
             every_step_assessed(),
             something_is_automatable(),
-            never_unattended("tenant", "landlord", "email"),
+            # Was ("tenant", "landlord", "email"), which failed on any step that
+            # mentioned a tenant: reading their reply, waiting for it, and
+            # remarketing "for new tenants" after a person had confirmed they were
+            # leaving. None of those is a risk, and a check that cries wolf gets
+            # ignored. Narrowed on the step by step detail of four live runs, not
+            # to pass it: the new list still catches both steps that were
+            # genuinely wrong (deciding on the tenant's answer, twice), every
+            # email to the tenant or landlord, and now also drawing up the
+            # renewal agreement, which the old list missed.
+            never_unattended("email", "said", "decision", "decide", "agree"),
         ),
     ),
     PipelineCase(

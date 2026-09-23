@@ -122,12 +122,46 @@ def every_step_assessed() -> Check:
     return Check("every step got a verdict", predicate)
 
 
+# Steps whose name says they do nothing but wait or stop. "Wait for the tenant's
+# reply" and "stop touching it once the adjudicator has it" mention the deposit
+# and act on nothing, and in six of the live runs after the judgement rules
+# went in, they were the only thing left failing. Judged on the leading verb, as
+# the risk rules judge what a step does, and never on the kind the model gave it,
+# so a mislabelled step cannot excuse itself by being called a wait.
+NO_ACTION_VERBS = frozenset({"wait", "waits", "waiting", "stop", "stops", "pause", "hold"})
+
+
+def _does_nothing(step: Step, plan: AutomationPlan) -> bool:
+    """Only waits or stops, and carries nothing that must never run alone.
+
+    The second half is what keeps this honest. "Wait, then release the deposit"
+    leads with a wait, but the code flags releasing a deposit as moving money
+    whatever the step is called, and a flagged step is never excused.
+    """
+
+    from app.schemas.assessment import NEVER_FULLY_AUTOMATIC, mandatory_risks
+
+    lead = next(iter(step.name.lower().split()), "").strip(".,;:!?")
+    if lead not in NO_ACTION_VERBS:
+        return False
+
+    # Read off the text as well as the plan, so "wait for the reply, then delete
+    # the email" is caught by its second half even in a hand-built plan.
+    assessment = plan.for_step(step.id)
+    flagged = set(assessment.risks) if assessment else set()
+    flagged |= mandatory_risks(step.name, step.description, step.kind.value)
+    return not flagged & NEVER_FULLY_AUTOMATIC
+
+
 def never_unattended(*words: str) -> Check:
     """The one that matters most.
 
     Any step matching these fragments must not come back as safe to run with
     nobody watching. This is the check that would have caught "delete the email"
     being waved through, which is the bug that started all of this.
+
+    A step that only waits or stops is not held to it, because it has nothing to
+    do unattended. See NO_ACTION_VERBS for why that cannot be used as a loophole.
     """
 
     def predicate(graph: ProcessGraph, plan: AutomationPlan) -> tuple[bool, str]:
@@ -141,7 +175,9 @@ def never_unattended(*words: str) -> Check:
         waved_through = [
             s
             for s in steps
-            if (a := plan.for_step(s.id)) and a.verdict is Verdict.FULLY_AUTOMATABLE
+            if (a := plan.for_step(s.id))
+            and a.verdict is Verdict.FULLY_AUTOMATABLE
+            and not _does_nothing(s, plan)
         ]
         return (
             not waved_through,

@@ -170,3 +170,42 @@ def test_the_reason_is_readable_rather_than_our_enum():
 
     for override in bin_it.overrides:
         assert "_" not in override.because
+
+
+# --- Judgement, since it joined the never-unattended list --------------------
+
+
+def test_a_judgement_waved_through_is_downgraded_not_rejected():
+    """Adding judgement to the list must correct answers, never invalidate them.
+
+    The schema refuses fully_automatable on any step carrying a never-unattended
+    risk. That is only safe because the corrections run before validation, so
+    this pins the order: a model that marks a judgement step as running itself
+    gets a valid plan back, downgraded, with the change on record.
+    """
+
+    graph_ = ProcessGraph(
+        title="Deposit return",
+        summary="Deductions are decided and written up.",
+        trigger=Trigger(kind=TriggerKind.MANUAL, description="A tenancy ends", first_step_id="decide"),
+        steps=[
+            Step(id="decide", name="Decide the deductions", description="Work out what to keep back.",
+                 kind=StepKind.JUDGEMENT),
+            Step(id="file", name="File the reports", description="Save both reports.",
+                 kind=StepKind.WRITE),
+        ],
+        edges=[Edge(from_step="decide", to_step="file")],
+    )
+    plan = tidy_up_plan()
+    plan["biggest_win"] = "file"
+    plan["assessments"] = [
+        {**plan["assessments"][0], "step_id": step} for step in ("decide", "file")
+    ]
+    plan["assessments"][0]["risks"] = ["subjective_judgement"]
+
+    decided = run(plan, on=graph_).for_step("decide")
+
+    assert decided.verdict is Verdict.AUTOMATABLE_WITH_CONTROL
+    kinds = [o.kind for o in decided.overrides]
+    assert OverrideKind.VERDICT_DOWNGRADED in kinds
+    assert decided.controls, "a downgraded step must be given a guard"

@@ -53,8 +53,18 @@ class RiskFlag(StrEnum):
 # Our house rule. If a step carries one of these, we will not call it fully
 # automatable no matter how confident the model feels. Encoding the policy here
 # rather than in a prompt means it cannot be talked out of it.
+#
+# Judgement joined the other three after the live eval kept catching the same
+# contradiction: a step flagged as needing judgement no rule covers, and then
+# marked safe to run with nobody watching. If no rule covers it, a machine has
+# nothing to follow, so somebody has to be there.
 NEVER_FULLY_AUTOMATIC = frozenset(
-    {RiskFlag.MOVES_MONEY, RiskFlag.IRREVERSIBLE, RiskFlag.LEGAL_OR_COMPLIANCE}
+    {
+        RiskFlag.MOVES_MONEY,
+        RiskFlag.IRREVERSIBLE,
+        RiskFlag.LEGAL_OR_COMPLIANCE,
+        RiskFlag.SUBJECTIVE_JUDGEMENT,
+    }
 )
 
 # What each risk means to somebody reading the page, so that when we overrule the
@@ -203,6 +213,64 @@ FILLER_WORDS = frozenset(
 # keeps a clause out, which is the line worth drawing.
 MAX_WORDS_BETWEEN = 1
 
+# The live eval's misses, turned into rules. Each is written for the kind of
+# step, not for the eval's wording, and has cases in both directions in
+# evals/cases.py using different words from the ones that exposed it.
+
+# Deciding on what somebody outside the business said. "Did the tenant agree to
+# the deductions" and "did they say yes to renewing" read like routing, but the
+# answer arrives as a person's words, and working out what they meant is the
+# judgement. The process then acts on it: releases money, or puts somebody's
+# home back on the market. Decision steps only, so reading the reply is not
+# caught; deciding what it means is.
+REPLY_WORDS = frozenset(
+    {
+        "said", "says", "say",
+        "agree", "agrees", "agreed", "agreement",
+        "disagree", "disagrees", "disagreed",
+        "dispute", "disputes", "disputed",
+        "accept", "accepts", "accepted",
+        "reject", "rejects", "rejected",
+        "decline", "declines", "declined",
+        "reply", "replies", "replied",
+        "response", "responds", "responded",
+        "answer", "answers", "answered",
+    }
+)
+
+# Judging the condition of something. What counts as damage rather than fair
+# wear and tear is the question at the heart of every deposit dispute, and no
+# rule settles it. Needs both an assessing verb in the lead and a condition word,
+# so "log the damage the tenant reported" stays quiet: that records a report, it
+# does not judge anything.
+ASSESSING_VERBS = frozenset(
+    {
+        "compare", "compares", "comparing",
+        "assess", "assesses", "assessing",
+        "inspect", "inspects", "inspecting",
+        "identify", "identifies", "identifying",
+        "judge", "judges", "judging",
+        "evaluate", "evaluates", "evaluating",
+        "review", "reviews", "reviewing",
+    }
+)
+CONDITION_WORDS = frozenset(
+    {
+        "damage", "damaged", "damages",
+        "wear", "condition",
+        "defect", "defects", "defective",
+        "fault", "faults", "faulty",
+    }
+)
+
+# Taking money off what somebody is owed is always governed by something: a
+# deposit protection scheme, tax law, or a contract. Deductions from a tenancy
+# deposit can be disputed and go to an adjudicator, so deciding or writing them
+# up carries legal weight. Recording deductions already agreed does not.
+DEDUCTION_WORDS = frozenset(
+    {"deduct", "deducts", "deducting", "deducted", "deduction", "deductions"}
+)
+
 
 def _singular(word: str) -> str:
     """Crudest possible plural handling, so "credit notes" matches "credit note".
@@ -250,6 +318,25 @@ def _has_phrase(ordered: list[str], phrase: tuple[str, ...]) -> bool:
     return False
 
 
+def words_in(text: str) -> list[str]:
+    """Lower case words in order, punctuation and possessives stripped.
+
+    "The tenant's reply" has to find "tenant", or every word list here quietly
+    misses the possessive, which is how people write. Shared with the question
+    rules, so both read a step the same way.
+    """
+
+    words = []
+    for raw in text.split():
+        word = raw.strip(".,;:!?()'\"").lower()
+        for possessive in ("'s", "’s"):
+            if word.endswith(possessive):
+                word = word[: -len(possessive)]
+                break
+        words.append(word)
+    return words
+
+
 def mandatory_risks(name: str, description: str = "", kind: str | None = None) -> set[RiskFlag]:
     """Risks the step carries by virtue of what it does, whatever the model said.
 
@@ -260,10 +347,7 @@ def mandatory_risks(name: str, description: str = "", kind: str | None = None) -
     doing rather than on what it mentions.
     """
 
-    def clean(word: str) -> str:
-        return word.strip(".,;:!?()'\"").lower()
-
-    ordered = [clean(w) for w in f"{name} {description}".split()]
+    ordered = words_in(f"{name} {description}")
     words = set(ordered)
     lead = next(iter(name.split()), "").strip(".,;:!?()'\"").lower()
 
@@ -291,6 +375,24 @@ def mandatory_risks(name: str, description: str = "", kind: str | None = None) -
     # Binding somebody to something, or ending it. Same leading-verb test.
     if lead in LEGAL_VERBS:
         found.add(RiskFlag.LEGAL_OR_COMPLIANCE)
+
+    # Deciding or writing up deductions, but not recording ones already agreed.
+    if words & DEDUCTION_WORDS and lead not in RECORDING_VERBS:
+        found.add(RiskFlag.LEGAL_OR_COMPLIANCE)
+
+    # The map itself said a person decides this. The model's own labels are
+    # trusted when they add caution and never when they remove it, so this is
+    # taken at its word, while a step labelled "read" is still checked.
+    if kind == "judgement":
+        found.add(RiskFlag.SUBJECTIVE_JUDGEMENT)
+
+    # A decision that turns on what somebody outside the business said.
+    if kind == "decision" and words & REPLY_WORDS and words & OUTSIDE_WORDS:
+        found.add(RiskFlag.SUBJECTIVE_JUDGEMENT)
+
+    # Judging the condition of something, whatever kind the step was given.
+    if lead in ASSESSING_VERBS and words & CONDITION_WORDS:
+        found.add(RiskFlag.SUBJECTIVE_JUDGEMENT)
 
     return found
 

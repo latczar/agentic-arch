@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from pydantic import ValidationError
 
 from app.llm.base import StructuredLLM
+from app.questions import add_missing_questions
 from app.schemas.process import Answer, ProcessGraph
 
 SYSTEM_PROMPT = """\
@@ -53,6 +54,9 @@ On things the description does not say:
 - Raise it as a clarifying question too, but only when the answer would
   genuinely change the design. Two or three questions is plenty. Offer likely
   answers so it can be answered in one click.
+- Where the process waits on somebody's reply and the description does not say
+  what happens if they never answer, that is a missing branch. Do not draw it;
+  ask about it.
 
 Write names and descriptions in plain British English, the way the person would
 say it themselves. Keep it short.
@@ -116,6 +120,9 @@ def extract_process(
             prompt = _repair_prompt(description, raw, attempt.errors, answers)
             continue
 
+        # After validation, so a question we add can only point at a step that
+        # really exists, and cannot be what made a map fail.
+        graph = add_missing_questions(graph, description, answers)
         return ExtractionResult(graph=graph, attempts=attempts, model=llm.name)
 
     return ExtractionResult(graph=None, attempts=attempts, model=llm.name)

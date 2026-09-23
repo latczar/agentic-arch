@@ -123,6 +123,10 @@ class ClarifyingQuestion(Base):
         default_factory=list,
         description="Two to four likely answers so it can be answered in one click.",
     )
+    added_by_us: bool = Field(
+        default=False,
+        description="Filled in by us after you answer. Leave it out.",
+    )
 
 
 class Answer(Base):

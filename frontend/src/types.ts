@@ -46,6 +46,8 @@ export interface Question {
   question: string;
   why_it_matters: string;
   suggested_answers: string[];
+  /** Asked by our own checks because the model did not. Set only by the server. */
+  added_by_us?: boolean;
 }
 
 export interface ProcessGraph {
