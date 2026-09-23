@@ -118,28 +118,49 @@ correction can write "nothing was changed" over the top of one.
 ## How it works
 
 ```
-Plain English
-      |
-      v
- [ MODEL ]   fills in a structured form        <- stage 1: describe
-      |
-      v
- [ CODE  ]   validates the process graph
-      |
-      +-- broken? send the faults back and ask again
-      |
-      v
- [ MODEL ]   judges each step                  <- stage 2: decide
-      |
-      v
- [ CODE  ]   cross-checks against the graph
-      |
-      v
+                          Plain English
+                               |
+            +------------------+------------------+
+            |                                     |
+            v                                     v
+   THE SLOW PATH                          THE FAST PATH
+   two model calls, 10 to 60s             one embedding, about 1s
+
+ [ CODE  ] is this a description?       [ CODE  ] vector for the text
+     |     no -> say so, stop                |
+     v                                       v
+ [ MODEL ] fills in a structured form    [ CODE  ] compare with 12 articles
+     |                                       |
+     v                                       v
+ [ CODE  ] validates the graph           [ CODE  ] above the threshold?
+     |                                       |     no -> show nothing
+     +-- broken? hand back the faults        v
+     |   and ask again                   The article for this job
+     v
+ [ MODEL ] judges each step
+     |
+     v
+ [ CODE  ] adds the risks it missed,
+     |     downgrades what that breaks,
+     |     supplies a missing guard,
+     |     and records every change
+     v
  Process map + verdicts + controls
 ```
 
-Two model calls, not one. Asking a single prompt to both *understand* a process and
-*judge* it does each job worse than asking twice.
+**Two model calls, not one.** Asking a single prompt to both *understand* a process
+and *judge* it does each job worse than asking twice.
+
+**Two paths, not one.** They start from the same sentence and never touch. The slow
+one needs generation and is at the mercy of whatever the provider is doing today.
+The fast one needs an embedding and a dot product, and answered in under 1.5 seconds
+on the same deployment, on the same afternoon, where the slow one was returning 504.
+Tying them together would have bought nothing and cost the fast one its independence.
+
+**Code at both ends of both paths.** Every box marked CODE is a decision the model
+does not get to make: whether this is even the right kind of input, whether the graph
+holds together, what the risks really are, and whether a retrieved article is close
+enough to show. The model fills in the middle.
 
 ## The parts worth looking at
 
@@ -646,9 +667,13 @@ figures are in pounds, because that is who it is for.
 
 Working: the two-stage pipeline, validation, repair, record/replay, a web front end
 with the process rendered as a diagram, answerable questions that feed back into the
-analysis, a written record wherever the code overruled the model, the time
-arithmetic, shareable links, handover to n8n, and a scored eval suite with committed
-baselines.
+analysis, a written record wherever the code overruled the model, retrieval over a
+written corpus on its own independent path, the time arithmetic, shareable links,
+handover to n8n, and a scored eval suite with committed baselines covering the
+safety net, the pipeline and both retrievers.
+
+Not stored: anything you type. There are no accounts and no sessions. A share link
+is the only thing that outlives the tab, and only because you asked for one.
 
 Live at [ai-auto-architect.vercel.app](https://ai-auto-architect.vercel.app).
 
