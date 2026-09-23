@@ -1,0 +1,92 @@
+{
+  "summary": {
+    "model": "gemini-3.1-flash-lite",
+    "recorded_at": "2026-09-23T19:42:30+00:00",
+    "passed": 19,
+    "total": 21,
+    "could_not_run": 1,
+    "seconds": 24.0,
+    "calls": 2,
+    "tokens": {
+      "input": 1975,
+      "output": 1486,
+      "thinking": 0,
+      "total": 3461
+    },
+    "cost_per_analysis": 0.00272275,
+    "prices_as_of": "24 September 2026",
+    "first_error": "could not reach the model: gemini-3.1-flash-lite did not finish within the 100 seconds this page allows. Try again in a minute, or run one of the recorded examples, which need no model at all."
+  },
+  "cases": [
+    {
+      "case": "invoice-with-approval",
+      "passed": 0,
+      "total": 0,
+      "seconds": 100.1,
+      "calls": 1,
+      "tokens": {
+        "input": 0,
+        "output": 0,
+        "thinking": 0,
+        "total": 0
+      },
+      "error": "could not reach the model: gemini-3.1-flash-lite did not finish within the 100 seconds this page allows. Try again in a minute, or run one of the recorded examples, which need no model at all."
+    },
+    {
+      "case": "payment-no-approval",
+      "passed": 7,
+      "total": 7,
+      "seconds": 19.4,
+      "calls": 2,
+      "tokens": {
+        "input": 1802,
+        "output": 1109,
+        "thinking": 0,
+        "total": 2911
+      },
+      "error": null
+    },
+    {
+      "case": "tenancy-renewals",
+      "passed": 5,
+      "total": 5,
+      "seconds": 28.6,
+      "calls": 2,
+      "tokens": {
+        "input": 2098,
+        "output": 1605,
+        "thinking": 0,
+        "total": 3703
+      },
+      "error": null
+    },
+    {
+      "case": "deposit-return",
+      "passed": 3,
+      "total": 5,
+      "seconds": 28.6,
+      "calls": 2,
+      "tokens": {
+        "input": 2160,
+        "output": 1853,
+        "thinking": 0,
+        "total": 4013
+      },
+      "error": null
+    },
+    {
+      "case": "viewing-feedback",
+      "passed": 4,
+      "total": 4,
+      "seconds": 18.4,
+      "calls": 2,
+      "tokens": {
+        "input": 1840,
+        "output": 1378,
+        "thinking": 0,
+        "total": 3218
+      },
+      "error": null
+    }
+  ]
+}

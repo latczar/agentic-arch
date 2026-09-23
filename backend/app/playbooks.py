@@ -182,7 +182,7 @@ class LexicalRetriever:
     """BM25 over the corpus. No API, no vectors, no network, no cold start.
 
     Worth trying properly rather than as a straw man. At this size the
-    vocabulary is distinctive, and "rent" appearing in one document out of
+    vocabulary is distinctive, and "arrears" appearing in one document out of
     twelve is an extremely strong signal that embeddings have to work to beat.
     """
 

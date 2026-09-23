@@ -116,7 +116,7 @@ dimensions is a 160KB file and a loop.
 
 ```bash
 cd backend
-.venv/Scripts/python -m pytest                   # 282 tests, no API calls
+.venv/Scripts/python -m pytest                   # 294 tests, no API calls
 .venv/Scripts/python scripts/eval.py             # the safety net, free and instant
 .venv/Scripts/python scripts/eval.py replay      # the pipeline, recorded answers
 .venv/Scripts/python scripts/eval.py playbooks   # retrieval, free and instant
@@ -131,6 +131,36 @@ on a regression, so it can run in a build.
 
 Building it found two real holes: a risk on the never-safe list with no code behind
 it, and three money phrases nothing matched.
+
+## Choosing the model
+
+The same five live cases on each model, on the evening of 24 September 2026. Cost is
+at the paid rate on Google's pricing page that day; the free tier costs nothing until
+its daily allowance runs out.
+
+| model | checks passed | could not run | time per analysis | calls | thinking tokens | cost per 1,000 analyses |
+| --- | --- | --- | --- | --- | --- | --- |
+| gemini-3.5-flash-lite | 24 of 26 | 0 | 14.8s | 2 | 0 | $4.66 |
+| gemini-3.1-flash-lite | 19 of 21 | 1 | 24.0s | 2 | 0 | $2.72 |
+| gemini-3.8-flash | none ran | 2 | n/a | n/a | n/a | n/a |
+
+- **Flash-Lite 3.5 stays.** It is the only model that finished every case, and the
+  quickest.
+- **Flash-Lite 3.1** is cheaper but slower, and one analysis ran past the 100 second
+  limit.
+- **Flash 3.8 thinks before it answers.** On the one call it finished, 2,446 thinking
+  tokens against 1,626 of answer. Its first analysis ran out of time and its free
+  allowance ran out during the second.
+- **Not measured:** Flash 3.5, whose free allowance of 20 requests a day was already
+  used, and Flash-Lite 2.5, which is closed to new users.
+
+```bash
+.venv/Scripts/python scripts/bakeoff.py --ipv4 gemini-3.5-flash   # after the daily reset
+.venv/Scripts/python scripts/bakeoff.py --table
+```
+
+The live baseline records which model produced it, so a later run on a different
+model says so rather than reporting a regression in the code.
 
 ## Run it
 

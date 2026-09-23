@@ -1,0 +1,50 @@
+{
+  "summary": {
+    "model": "gemini-3.8-flash",
+    "recorded_at": "2026-09-23T19:35:47+00:00",
+    "passed": 0,
+    "total": 0,
+    "could_not_run": 2,
+    "seconds": null,
+    "calls": null,
+    "tokens": {
+      "input": 0,
+      "output": 0,
+      "thinking": 0,
+      "total": 0
+    },
+    "cost_per_analysis": null,
+    "prices_as_of": "24 September 2026",
+    "first_error": "mapped fine, then could not reach the model: gemini-3.8-flash did not finish within the 100 seconds this page allows. Try again in a minute, or run one of the recorded examples, which need no model at all."
+  },
+  "cases": [
+    {
+      "case": "invoice-with-approval",
+      "passed": 0,
+      "total": 0,
+      "seconds": 232.7,
+      "calls": 2,
+      "tokens": {
+        "input": 494,
+        "output": 1626,
+        "thinking": 2446,
+        "total": 4566
+      },
+      "error": "mapped fine, then could not reach the model: gemini-3.8-flash did not finish within the 100 seconds this page allows. Try again in a minute, or run one of the recorded examples, which need no model at all."
+    },
+    {
+      "case": "payment-no-approval",
+      "passed": 0,
+      "total": 0,
+      "seconds": 164.5,
+      "calls": 1,
+      "tokens": {
+        "input": 0,
+        "output": 0,
+        "thinking": 0,
+        "total": 0
+      },
+      "error": "could not reach the model: Today's free model allowance has been used up, so new descriptions cannot be analysed until it resets tomorrow. The recorded examples still work, and need no model at all."
+    }
+  ]
+}

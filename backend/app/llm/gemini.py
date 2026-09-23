@@ -10,6 +10,8 @@ from __future__ import annotations
 import os
 import random
 import time
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeout
 
 from app.llm.base import LLMError
 
@@ -86,9 +88,22 @@ class GeminiClient:
         except ImportError as exc:  # pragma: no cover - install-time problem
             raise LLMError("The google-genai package is not installed. Run: pip install google-genai") from exc
 
-        self._client = genai.Client(api_key=key)
+        from google.genai import types
+
+        # The SDK retries by itself underneath our own loop: 429s and 5xx
+        # errors, up to three times, sleeping for whatever the server's
+        # Retry-After says. On a used-up daily allowance that header says about
+        # a minute, so the reader waited three minutes to be told "try again
+        # tomorrow". One retry loop, ours, which knows about the deadline.
+        # The SDK still makes one extra attempt on a 429 even at zero, which is
+        # measured and tolerated: the deadline below is what actually holds.
+        self._client = genai.Client(
+            api_key=key,
+            http_options=types.HttpOptions(retry_options=types.HttpRetryOptions(attempts=0)),
+        )
         self.model = model
         self.name = f"gemini:{model}"
+        self.last_usage: dict[str, int] = {}
 
         # Started once the client is ready, so the first import of the SDK,
         # which takes about a second, is not charged to the model's time.
@@ -115,7 +130,12 @@ class GeminiClient:
                 raise LLMError(self._out_of_time())
 
             try:
-                return self._request(system=system, prompt=prompt, schema=schema, timeout=left)
+                return _within(
+                    left,
+                    lambda: self._request(system=system, prompt=prompt, schema=schema, timeout=left),
+                )
+            except _Late:
+                raise LLMError(self._out_of_time()) from None
             except LLMError:
                 raise
             except Exception as exc:  # provider SDKs raise a wide range of types
@@ -169,10 +189,48 @@ class GeminiClient:
             timeout=timeout,
         )
 
+        # Kept for anybody measuring cost, such as scripts/bakeoff.py. Thinking
+        # tokens are counted apart from the answer and billed as output, which
+        # is how a model can cost more than its answer length suggests.
+        usage = getattr(interaction, "usage", None)
+        self.last_usage = {
+            "input": getattr(usage, "total_input_tokens", None) or 0,
+            "output": getattr(usage, "total_output_tokens", None) or 0,
+            "thinking": getattr(usage, "total_thought_tokens", None) or 0,
+            "total": getattr(usage, "total_tokens", None) or 0,
+        }
+
         text = getattr(interaction, "output_text", None)
         if not text:
             raise LLMError("Gemini returned an empty response.")
         return text
+
+
+class _Late(Exception):
+    """The call was still going when the deadline arrived."""
+
+
+def _within(seconds: float, call):
+    """Run a call, and stop waiting for it after `seconds`, whatever it is doing.
+
+    The timeout handed to the SDK is not a deadline. It limits how long the
+    connection may sit silent, so a reply arriving a byte at a time never trips
+    it: measured against a local server sending one byte a second, a 3 second
+    timeout returned after 11. And a live Flash call given 100 seconds ran for
+    over 200. Only waiting on the clock ourselves makes the deadline real.
+
+    The abandoned call carries on in its thread until the SDK gives up on it.
+    Nothing reads its answer, and on Vercel the instance is frozen once the
+    response has gone, so the cost is one request's worth of quota.
+    """
+
+    pool = ThreadPoolExecutor(max_workers=1)
+    try:
+        return pool.submit(call).result(timeout=seconds)
+    except FutureTimeout:
+        raise _Late() from None
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)
 
 
 def _causes(exc: BaseException | None):

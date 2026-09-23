@@ -93,6 +93,10 @@ class CaseResult:
 class Report:
     mode: str
     results: list[CaseResult] = field(default_factory=list)
+    # Which model produced a live run. A live score is a fact about a model as
+    # much as about the code, so a baseline without it cannot say whether a
+    # later drop came from a change or from somebody switching models.
+    model: str | None = None
 
     @property
     def passed(self) -> int:
@@ -129,6 +133,7 @@ class Report:
     def to_baseline(self) -> dict:
         return {
             "mode": self.mode,
+            **({"model": self.model} if self.model else {}),
             "recorded_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "score": round(self.score, 4),
             "passed": self.passed,
@@ -302,11 +307,14 @@ def run_replay() -> Report:
 
 def run_live(make_llm, pause: float = LIVE_PAUSE_SECONDS) -> Report:
     results = []
+    model = None
     for index, case in enumerate(PIPELINE_CASES):
         if index and pause:
             time.sleep(pause)
-        results.append(run_case(case, make_llm()))
-    return Report(mode="live", results=results)
+        llm = make_llm()
+        model = getattr(llm, "name", model)
+        results.append(run_case(case, llm))
+    return Report(mode="live", results=results, model=model)
 
 
 # --- Baselines ----------------------------------------------------------------

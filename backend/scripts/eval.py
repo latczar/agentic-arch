@@ -173,6 +173,13 @@ def show(report: Report, quiet: bool = False) -> bool:
     was = baseline.get("score", 0)
     print(f"  baseline was {was:.0%}, recorded {baseline.get('recorded_at', 'at some point')}")
 
+    recorded_on = baseline.get("model")
+    if recorded_on and report.model and recorded_on != report.model:
+        # Still compared, because that is often the question being asked. But
+        # said out loud, so a difference is not read as a change to the code.
+        print(f"  note: the baseline came from {recorded_on}, this run from {report.model},")
+        print("        so any difference may be the model rather than the code")
+
     for line in improvements:
         print(f"  better: {line}")
     for line in regressions:

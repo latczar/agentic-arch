@@ -1,0 +1,92 @@
+{
+  "summary": {
+    "model": "gemini-3.5-flash-lite",
+    "recorded_at": "2026-09-23T19:34:19+00:00",
+    "passed": 24,
+    "total": 26,
+    "could_not_run": 0,
+    "seconds": 14.8,
+    "calls": 2,
+    "tokens": {
+      "input": 1924,
+      "output": 1635,
+      "thinking": 0,
+      "total": 3559
+    },
+    "cost_per_analysis": 0.0046647,
+    "prices_as_of": "24 September 2026",
+    "first_error": null
+  },
+  "cases": [
+    {
+      "case": "invoice-with-approval",
+      "passed": 5,
+      "total": 5,
+      "seconds": 15.5,
+      "calls": 2,
+      "tokens": {
+        "input": 2191,
+        "output": 2353,
+        "thinking": 0,
+        "total": 4544
+      },
+      "error": null
+    },
+    {
+      "case": "payment-no-approval",
+      "passed": 6,
+      "total": 7,
+      "seconds": 11.4,
+      "calls": 2,
+      "tokens": {
+        "input": 1628,
+        "output": 800,
+        "thinking": 0,
+        "total": 2428
+      },
+      "error": null
+    },
+    {
+      "case": "tenancy-renewals",
+      "passed": 5,
+      "total": 5,
+      "seconds": 15.5,
+      "calls": 2,
+      "tokens": {
+        "input": 2029,
+        "output": 1931,
+        "thinking": 0,
+        "total": 3960
+      },
+      "error": null
+    },
+    {
+      "case": "deposit-return",
+      "passed": 4,
+      "total": 5,
+      "seconds": 14.8,
+      "calls": 2,
+      "tokens": {
+        "input": 2120,
+        "output": 2208,
+        "thinking": 0,
+        "total": 4328
+      },
+      "error": null
+    },
+    {
+      "case": "viewing-feedback",
+      "passed": 4,
+      "total": 4,
+      "seconds": 9.9,
+      "calls": 2,
+      "tokens": {
+        "input": 1652,
+        "output": 881,
+        "thinking": 0,
+        "total": 2533
+      },
+      "error": null
+    }
+  ]
+}

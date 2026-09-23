@@ -13,6 +13,7 @@ property that actually matters: nothing outlives the request's deadline.
 None of these reach the network. The request method is replaced outright.
 """
 
+import threading
 import time
 
 import pytest
@@ -162,6 +163,33 @@ def test_no_call_starts_without_time_to_finish():
     assert calls == []
     assert "did not finish" in str(caught.value)
     assert "recorded examples" in str(caught.value)
+
+
+def test_a_reply_that_never_finishes_is_abandoned_at_the_deadline(monkeypatch):
+    """A timeout is not a deadline, so the client keeps the clock itself.
+
+    The SDK's timeout limits silence, not duration. A reply trickling in a byte
+    at a time never trips it, and a live call given 100 seconds ran past 200.
+    This stands in for that: a call that simply does not come back.
+    """
+
+    monkeypatch.setattr("app.llm.gemini.MIN_CALL_SECONDS", 0.1)
+    release = threading.Event()
+
+    c = client(budget=40.0)
+    c._deadline = time.monotonic() + 0.5
+    c._request = lambda **_: release.wait(10) and "{}"
+
+    started = time.monotonic()
+    try:
+        with pytest.raises(LLMError) as caught:
+            ask(c)
+        waited = time.monotonic() - started
+    finally:
+        release.set()  # let the abandoned call finish, so the suite exits promptly
+
+    assert waited < 2.0
+    assert "did not finish" in str(caught.value)
 
 
 def test_a_call_that_times_out_says_so_plainly():
