@@ -59,7 +59,7 @@ of what changed.
             |                                     |
             v                                     v
    THE SLOW PATH                          THE FAST PATH
-   two model calls, 10 to 60s             one embedding, about 1s
+   two model calls, 10 to 20s             one embedding, about 1s
 
  [ CODE  ] is this a description?       [ CODE  ] vector for the text
      |     no -> say so, stop                |
