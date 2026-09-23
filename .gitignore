@@ -27,3 +27,6 @@ backend/recordings/_latest/
 # Note: the curated cases in backend/recordings/ are deliberately NOT ignored. Those are saved model
 # responses so the project can be run with `--replay` and no API key at all.
 .vercel
+
+# Local editor and assistant settings
+.claude/
