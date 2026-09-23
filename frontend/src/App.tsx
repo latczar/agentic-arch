@@ -15,6 +15,7 @@ import { Diagram } from "./components/Diagram";
 import { Effort } from "./components/Effort";
 import { Playbook } from "./components/Playbook";
 import { Verdicts } from "./components/Verdicts";
+import { clearDraft, loadDraft, saveDraft } from "./draft";
 import type {
   AnalyseResponse,
   Answer,
@@ -56,10 +57,40 @@ export default function App() {
   const [sharing, setSharing] = useState(false);
   const [copied, setCopied] = useState(false);
   const [opening, setOpening] = useState(() => Boolean(shareIdFromUrl()));
+  // Shown only when something was actually brought back, so the notice is news
+  // rather than furniture.
+  const [restored, setRestored] = useState(false);
 
   useEffect(() => {
     fetchExamples().then(setExamples).catch(() => setExamples([]));
   }, []);
+
+  // What was in the box last time, from this browser and nowhere else. Skipped
+  // on a /s/<id> URL, where the visitor came to read somebody else's analysis
+  // and has no interest in a draft of their own.
+  useEffect(() => {
+    if (shareIdFromUrl()) return;
+
+    const draft = loadDraft();
+    if (!draft) return;
+
+    setDescription(draft.description);
+    setAnswers(draft.answers);
+    setRestored(true);
+  }, []);
+
+  // Written on a timer rather than on every keystroke. Storage is synchronous,
+  // so writing a few kilobytes on each character typed is work done on the
+  // thread that is trying to render the character.
+  //
+  // Checks the URL rather than the `shared` state, which is null until the fetch
+  // comes back. In that gap the box is empty, an empty box clears the draft, and
+  // opening somebody else's link would quietly delete your own work.
+  useEffect(() => {
+    if (shareIdFromUrl()) return;
+    const timer = setTimeout(() => saveDraft(description, answers), 400);
+    return () => clearTimeout(timer);
+  }, [description, answers]);
 
   // A /s/<id> URL opens somebody else's analysis instead of a blank page.
   useEffect(() => {
@@ -196,6 +227,7 @@ export default function App() {
   function useExample(example: Example) {
     setDescription(example.description);
     setPlaybook(null);
+    setRestored(false);
     setAnswers({}); // A different process, so nothing said about the last one holds.
     setUsedAnswers([]);
     // Recorded examples replay from disk, so they work with no API key and
@@ -267,6 +299,22 @@ export default function App() {
             {replayCase && (
               <span className="composer__note">
                 Recorded example. Runs without an API key.
+              </span>
+            )}
+            {restored && !replayCase && (
+              <span className="composer__note">
+                Picked up where you left off. Kept in this browser only.{" "}
+                <button
+                  className="linkish"
+                  onClick={() => {
+                    clearDraft();
+                    setDescription("");
+                    setAnswers({});
+                    setRestored(false);
+                  }}
+                >
+                  Clear it
+                </button>
               </span>
             )}
           </div>

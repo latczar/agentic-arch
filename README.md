@@ -522,6 +522,31 @@ attention. Approving takes less time than doing, so the real saving sits above t
 figure shown rather than below it. Understating is the honest direction to be wrong
 in.
 
+## Keeping your place
+
+A description of how a business runs takes a few minutes to write, and until
+recently a refresh threw it away. After a request that times out, which happens,
+that stung more than it should.
+
+So the box is kept in `localStorage`, which is to say on your own machine and
+nowhere else. Deliberately not on a server: that would need accounts, and holding
+descriptions of how real businesses run, tied to identities, indefinitely, is a
+liability bought for nothing. Nobody is more impressed by a login screen.
+
+Four things it has to get right, and none of them are the saving:
+
+- **Opening somebody else's share link must not wipe your draft.** The box is
+  empty while that fetch is in flight, an empty box clears the draft, and the
+  first version of this deleted your work for the crime of reading a link
+  somebody sent you. It checks the URL rather than the loaded state.
+- **It expires after a week.** Text you wrote seven days ago is not a draft you
+  are returning to, it is a surprise, and it may describe somebody's payroll.
+- **Every read and write is wrapped.** Storage throws rather than returning
+  nothing in a private window, with site data blocked, and inside some embedded
+  browsers. None of those are reasons for the page to stop working.
+- **The key is versioned.** Changing the shape stored there can never leave a
+  returning visitor staring at a crash.
+
 ## Sharing it
 
 The **Share** button stores the analysis and gives you a link. Whoever you send it
@@ -672,8 +697,12 @@ written corpus on its own independent path, the time arithmetic, shareable links
 handover to n8n, and a scored eval suite with committed baselines covering the
 safety net, the pipeline and both retrievers.
 
-Not stored: anything you type. There are no accounts and no sessions. A share link
-is the only thing that outlives the tab, and only because you asked for one.
+Not stored on any server: anything you type. There are no accounts and no sessions.
+A share link is the only thing that leaves your machine, and only because you asked
+for one.
+
+What you were last writing is kept in your own browser so a refresh does not throw
+it away. It is never sent anywhere and there is a button on the page to wipe it.
 
 Live at [ai-auto-architect.vercel.app](https://ai-auto-architect.vercel.app).
 
