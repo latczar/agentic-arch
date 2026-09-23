@@ -30,6 +30,16 @@ export async function analyse(
   if (response.status === 422) {
     throw new Error("That description is too short. Give it a sentence or two more.");
   }
+  if (response.status === 502 || response.status === 504) {
+    // The platform killed the request before the app could say anything, so
+    // there is no message from us to show. "The server could not handle that"
+    // is true and useless: it reads like the description was at fault.
+    throw new Error(
+      "That took too long and the server gave up waiting. The model is " +
+        "sometimes slow under load. Give it a minute and try again, or use one " +
+        "of the recorded examples, which need no model at all.",
+    );
+  }
   if (!response.ok) {
     throw new Error(`The server could not handle that (${response.status}).`);
   }

@@ -13,14 +13,23 @@ import time
 
 from app.llm.base import LLMError
 
-# Flash-Lite rather than the newest Flash, for one reason: quota. The free tier
-# allows roughly 20 requests a day on gemini-3.8-flash and several hundred on
-# the Lite models. Extraction is mechanical work, reading a description and
-# filling in a form, so a smaller model is a fair trade for being able to
-# actually run it. The judgement stage is where a stronger model earns its keep.
-# Picking a different model per stage is called model routing, and it is usually
-# the largest cost lever in an LLM application.
-DEFAULT_MODEL = "gemini-3.5-flash-lite"
+# Flash rather than Flash-Lite, which is not the way round it sounds.
+#
+# Lite was chosen originally on quota: the free tier allows far more requests a
+# day on the smaller models, and extraction is mechanical work that does not
+# need a large one. Sound reasoning, and it stopped being true. Measured against
+# the same trivial prompt, three samples each:
+#
+#     gemini-3.5-flash-lite    42.8s   68.8s   34.4s
+#     gemini-3.5-flash          6.0s   15.7s    4.1s
+#
+# An analysis makes two of these calls, so Lite could not finish inside Vercel's
+# 60 second limit and the deployed site returned 504 on every typed request. A
+# cheaper model you cannot finish a request on is not cheaper.
+#
+# Worth re-measuring rather than trusting: this is a snapshot of one afternoon,
+# and it is one line to change back.
+DEFAULT_MODEL = "gemini-3.5-flash"
 
 # HTTP statuses worth trying again: rate limited, or the provider is briefly
 # unwell. Anything else (a bad key, a malformed schema) will fail identically
@@ -32,12 +41,19 @@ TRANSIENT_STATUSES = frozenset({429, 500, 502, 503, 504})
 # Backing off four times doubling from two seconds is fine in isolation and adds
 # up badly: a single analysis makes two of these calls, each of which may repair
 # itself twice more, so a busy afternoon at the provider turns a page load into
-# several minutes of nothing. Vercel stops a function at 60 seconds regardless,
-# and a 504 tells the reader nothing they can act on.
+# several minutes of nothing.
 #
-# Found the hard way, with the model returning 503 while a browser sat on
-# "Working through it..." for two minutes.
-RETRY_BUDGET_SECONDS = 35.0
+# The number is derived rather than picked. vercel.json allows a function 60
+# seconds, an analysis makes two calls, so neither may spend more than half of
+# what is left after a little room for the work itself. Set it above that and
+# the platform kills the request first, which produces a 504 the reader cannot
+# act on instead of a sentence telling them what to do.
+#
+# Found the hard way, with a browser sitting on "Working through it..." for two
+# minutes and then showing exactly that 504.
+PLATFORM_LIMIT_SECONDS = 60.0
+CALLS_PER_ANALYSIS = 2
+RETRY_BUDGET_SECONDS = 25.0
 
 
 class GeminiClient:

@@ -99,9 +99,33 @@ def test_a_permanent_failure_is_not_retried_at_all():
 
 
 def test_the_default_budget_fits_inside_the_platform_timeout():
-    """vercel.json allows a function 60 seconds. Two calls have to fit in that."""
+    """The whole point of the budget, so it is worth asserting rather than assuming.
 
-    from app.llm.gemini import RETRY_BUDGET_SECONDS
+    A budget that can outlast the platform is not a budget. Vercel kills the
+    request first and the reader gets a 504 saying nothing.
+    """
 
-    assert RETRY_BUDGET_SECONDS * 2 < 90
+    from app.llm.gemini import (
+        CALLS_PER_ANALYSIS,
+        PLATFORM_LIMIT_SECONDS,
+        RETRY_BUDGET_SECONDS,
+    )
+
+    assert RETRY_BUDGET_SECONDS * CALLS_PER_ANALYSIS < PLATFORM_LIMIT_SECONDS
     assert client().retry_budget == RETRY_BUDGET_SECONDS
+
+
+def test_the_platform_limit_here_matches_the_one_vercel_is_told():
+    """Two files have to agree, and nothing else would notice them drifting."""
+
+    import json
+    from pathlib import Path
+
+    from app.llm.gemini import PLATFORM_LIMIT_SECONDS
+
+    config = json.loads(
+        (Path(__file__).resolve().parents[2] / "vercel.json").read_text(encoding="utf-8")
+    )
+    declared = config["functions"]["index.py"]["maxDuration"]
+
+    assert declared == PLATFORM_LIMIT_SECONDS
