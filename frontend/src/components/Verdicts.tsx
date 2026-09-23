@@ -63,6 +63,25 @@ export function Verdicts({ graph, plan, selected, onSelect }: Props) {
 
           <p>{assessment.rationale}</p>
 
+          {/* The one thing on this page that is ours rather than the model's.
+              Without it a verdict we corrected and a verdict it got right look
+              exactly the same, and the correction is the whole point. */}
+          {(assessment.overrides ?? []).length > 0 && (
+            <div className="override">
+              <strong className="override__title">
+                We overruled the model on this step
+              </strong>
+              {(assessment.overrides ?? []).map((override, index) => (
+                <p key={index} className="override__line">
+                  <span className="override__change">
+                    {override.was} <span aria-hidden="true">&rarr;</span> {override.now}
+                  </span>
+                  {override.because}
+                </p>
+              ))}
+            </div>
+          )}
+
           {assessment.risks.length > 0 && (
             <p className="verdict__risks">
               {assessment.risks.map((risk) => (

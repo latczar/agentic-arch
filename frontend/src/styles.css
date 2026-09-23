@@ -477,6 +477,38 @@ button:disabled {
   opacity: 0.85;
 }
 
+/* Where the code overruled the model ------------------------------------- */
+
+.override {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  /* Deliberately not the guard colour. A guard is a property of the process;
+     this is a property of the analysis, and conflating them hides both. */
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  font-size: 0.85rem;
+}
+
+.override__title {
+  display: block;
+  color: var(--accent);
+  margin-bottom: 6px;
+}
+
+.override__line {
+  color: inherit;
+  opacity: 0.9;
+  margin: 6px 0 0;
+}
+
+.override__change {
+  display: block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
 /* Questions --------------------------------------------------------------- */
 
 .questions {

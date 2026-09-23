@@ -3,7 +3,7 @@
 import json
 
 from app.assess import assess_process
-from app.schemas.assessment import ControlKind, RiskFlag, Verdict
+from app.schemas.assessment import ControlKind, OverrideKind, RiskFlag, Verdict
 from app.schemas.process import Edge, ProcessGraph, Step, StepKind, Trigger, TriggerKind
 from tests.test_extract import ScriptedLLM
 
@@ -150,7 +150,10 @@ def test_a_missing_guard_is_filled_in_rather_than_rejected():
     pay = result.plan.for_step("pay_invoice")
     assert len(pay.controls) == 1
     assert pay.controls[0].kind is ControlKind.HUMAN_APPROVAL
-    assert "Added automatically" in pay.controls[0].reason
+
+    # That we inserted it is recorded structurally rather than sniffed out of
+    # the wording, so rephrasing the reason cannot quietly break this.
+    assert any(o.kind is OverrideKind.CONTROL_ADDED for o in pay.overrides)
 
 
 def test_a_control_the_model_chose_is_left_alone():
@@ -159,7 +162,7 @@ def test_a_control_the_model_chose_is_left_alone():
 
     pay = result.plan.for_step("pay_invoice")
     assert pay.controls[0].kind is ControlKind.THRESHOLD_APPROVAL
-    assert "Added automatically" not in pay.controls[0].reason
+    assert not any(o.kind is OverrideKind.CONTROL_ADDED for o in pay.overrides)
 
 
 def test_an_irreversible_step_is_caught_even_when_the_model_missed_it():

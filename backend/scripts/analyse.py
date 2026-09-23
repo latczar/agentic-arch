@@ -123,8 +123,7 @@ def main() -> int:
         args.export_n8n.write_text(
             to_n8n_json(extraction.graph, assessment.plan), encoding="utf-8"
         )
-        print(f"
-Wrote {args.export_n8n}. Import it into n8n from Workflows > Import from File.")
+        print(f"\nWrote {args.export_n8n}. Import it from n8n's Workflows > Import from File.")
         print("The integration nodes are placeholders; each one says what to replace it with.")
 
     return 0
@@ -185,6 +184,12 @@ def show_plan(plan: AutomationPlan) -> None:
 
         if assessment.risks:
             print(f"            risks: {', '.join(r.value for r in assessment.risks)}")
+
+        # Where we overruled the model, say so. A reader cannot otherwise tell a
+        # sensible verdict apart from one that was caught and corrected.
+        for override in assessment.overrides:
+            print(f"            ! we changed this: {override.was} -> {override.now}")
+            print(f"              {override.because}")
 
         for control in assessment.controls:
             limit = ""

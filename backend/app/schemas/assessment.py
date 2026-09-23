@@ -57,6 +57,29 @@ NEVER_FULLY_AUTOMATIC = frozenset(
     {RiskFlag.MOVES_MONEY, RiskFlag.IRREVERSIBLE, RiskFlag.LEGAL_OR_COMPLIANCE}
 )
 
+# What each risk means to somebody reading the page, so that when we overrule the
+# model we can say why in a sentence rather than showing them our enum. Written
+# to slot after "it": "moves money", not "it moves money".
+RISK_IN_PLAIN_ENGLISH: dict[RiskFlag, str] = {
+    RiskFlag.MOVES_MONEY: "moves money",
+    RiskFlag.IRREVERSIBLE: "cannot be undone",
+    RiskFlag.LEGAL_OR_COMPLIANCE: "carries legal weight",
+    RiskFlag.EXTERNAL_COMMS: "sends something outside the business",
+    RiskFlag.PERSONAL_DATA: "handles personal data",
+    RiskFlag.CUSTOMER_FACING: "produces something a client sees",
+    RiskFlag.BULK_ACTION: "acts on many things at once",
+    RiskFlag.SUBJECTIVE_JUDGEMENT: "calls for judgement no rule covers",
+}
+
+
+def in_plain_english(risks) -> str:
+    """Risk flags as a readable list: "moves money and cannot be undone"."""
+
+    parts = [RISK_IN_PLAIN_ENGLISH.get(r, str(r).replace("_", " ")) for r in risks]
+    if len(parts) <= 1:
+        return "".join(parts)
+    return ", ".join(parts[:-1]) + " and " + parts[-1]
+
 # The rule above only helps if the risk was noticed in the first place, and that
 # was being left entirely to the model. It marked "delete the email" as safe to
 # run unattended, which it plainly is not.
@@ -342,6 +365,33 @@ class ToolMatch(Base):
     confidence: Confidence = Confidence.MEDIUM
 
 
+class OverrideKind(StrEnum):
+    """Which house rule corrected the model."""
+
+    RISK_ADDED = "risk_added"                    # we spotted what it missed
+    VERDICT_DOWNGRADED = "verdict_downgraded"    # its verdict contradicted the risks
+    CONTROL_ADDED = "control_added"              # it asked for a guard and gave none
+
+
+class Override(Base):
+    """One record of the code disagreeing with the model.
+
+    This is the most interesting thing the system does and it used to leave
+    almost no trace: a sentence appended to the rationale for one of the three
+    rules, and nothing at all for the other two. Somebody reading a guarded step
+    could not tell whether the model had been sensible or had been caught.
+
+    Written only by `_normalise` in assess.py. Anything a model puts here is
+    thrown away, because the record of a model being corrected is not the
+    model's to write.
+    """
+
+    kind: OverrideKind
+    was: str = Field(description="What the model produced.")
+    now: str = Field(description="What it became.")
+    because: str = Field(description="Why, in one sentence addressed to the reader.")
+
+
 class StepAssessment(Base):
     """The verdict on one step of the process."""
 
@@ -353,6 +403,10 @@ class StepAssessment(Base):
     controls: list[Control] = Field(default_factory=list)
     blockers: list[Blocker] = Field(default_factory=list)
     tool: ToolMatch | None = None
+    overrides: list[Override] = Field(
+        default_factory=list,
+        description="Filled in by us after you answer. Leave it out.",
+    )
 
     @model_validator(mode="after")
     def _verdict_must_match_its_evidence(self) -> StepAssessment:

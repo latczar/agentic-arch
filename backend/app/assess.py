@@ -18,6 +18,8 @@ from app.llm.base import StructuredLLM
 from app.schemas.assessment import (
     NEVER_FULLY_AUTOMATIC,
     AutomationPlan,
+    OverrideKind,
+    in_plain_english,
     mandatory_risks,
     validate_plan,
 )
@@ -164,13 +166,23 @@ def assess_process(
     return AssessmentResult(plan=None, attempts=attempts, model=llm.name)
 
 
+# Says why the guard is there, and nothing about where it came from. That it was
+# inserted by us rather than chosen by the model is recorded as an Override now,
+# and having both meant the page said the same thing twice in a row.
 AUTO_CONTROL_REASON = (
-    "Added automatically: this step was judged to need a guard, but none was "
-    "specified. Defaulting to asking a person, which is the safe assumption."
+    "Nothing here goes out unattended, so a person is asked first."
 )
 AUTO_RISK_NOTE = (
     "Flagged automatically from what this step does, rather than by judgement."
 )
+
+
+def _record(assessment: dict, kind: OverrideKind, was: str, now: str, because: str) -> None:
+    """Note that we changed the model's answer, and what it was before."""
+
+    assessment.setdefault("overrides", []).append(
+        {"kind": kind.value, "was": was, "now": now, "because": because}
+    )
 
 
 def _normalise(data: dict, graph: ProcessGraph) -> dict:
@@ -193,6 +205,12 @@ def _normalise(data: dict, graph: ProcessGraph) -> dict:
     for assessment in data.get("assessments") or []:
         if not isinstance(assessment, dict):
             continue
+
+        # Code-owned, so anything the model wrote here goes in the bin. A record
+        # of the model being corrected is not the model's to write, and leaving
+        # its version in place would let it claim it was never corrected at all.
+        assessment["overrides"] = []
+
         _add_mandatory_risks(assessment, graph)
         _downgrade_unsafe_verdict(assessment)
         _fill_missing_control(assessment)
@@ -218,8 +236,16 @@ def _add_mandatory_risks(assessment: dict, graph: ProcessGraph) -> None:
 
     assessment["risks"] = sorted(present | set(added))
 
-    rationale = (assessment.get("rationale") or "").rstrip()
-    assessment["rationale"] = f"{rationale} {AUTO_RISK_NOTE}".strip()
+    _record(
+        assessment,
+        OverrideKind.RISK_ADDED,
+        was=", ".join(sorted(present)) or "nothing flagged",
+        now=", ".join(assessment["risks"]),
+        because=(
+            f"Read off what the step says it does: it {in_plain_english(required)}. "
+            "Spotted in code rather than by judgement."
+        ),
+    )
 
 
 def _downgrade_unsafe_verdict(assessment: dict) -> None:
@@ -229,11 +255,23 @@ def _downgrade_unsafe_verdict(assessment: dict) -> None:
         return
 
     risks = {str(r) for r in assessment.get("risks") or []}
-    if not risks & {r.value for r in NEVER_FULLY_AUTOMATIC}:
+    breached = sorted(r for r in NEVER_FULLY_AUTOMATIC if r.value in risks)
+    if not breached:
         return
 
     assessment["verdict"] = "automatable_with_control"
     assessment["blockers"] = []  # a fully_automatable verdict cannot carry these
+
+    _record(
+        assessment,
+        OverrideKind.VERDICT_DOWNGRADED,
+        was="fully_automatable",
+        now="automatable_with_control",
+        because=(
+            f"It came back safe to run unattended, but it {in_plain_english(breached)}, "
+            "and nothing like that is left alone here."
+        ),
+    )
 
 
 def _fill_missing_control(assessment: dict) -> None:
@@ -257,6 +295,17 @@ def _fill_missing_control(assessment: dict) -> None:
             "addresses": list(assessment.get("risks") or []),
         }
     ]
+
+    _record(
+        assessment,
+        OverrideKind.CONTROL_ADDED,
+        was="no guard",
+        now="human_approval",
+        because=(
+            "It was judged to need a guard and then given none, so it defaults to "
+            "asking a person, which is the safe way to be wrong."
+        ),
+    )
 
 
 def _process_summary(graph: ProcessGraph) -> str:

@@ -79,6 +79,14 @@ export interface Blocker {
   workaround: string | null;
 }
 
+/** A record of our code disagreeing with the model. Written only by the server. */
+export interface Override {
+  kind: "risk_added" | "verdict_downgraded" | "control_added";
+  was: string;
+  now: string;
+  because: string;
+}
+
 export interface StepAssessment {
   step_id: string;
   verdict: Verdict;
@@ -87,6 +95,8 @@ export interface StepAssessment {
   risks: string[];
   controls: Control[];
   blockers: Blocker[];
+  // Absent on analyses shared before this existed, so never assume an array.
+  overrides?: Override[];
 }
 
 export interface AutomationPlan {

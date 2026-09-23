@@ -65,33 +65,55 @@ actual money transfers will still wait for your final click.
 [ auto  ]  read_amount
 
 [ guard ]  pay_invoice
-            It can set up the payment for you, but actual money leaving your bank
-            account should never happen completely unattended.
+            It can set up the payment for you, but actual money leaving your
+            bank account should never happen completely unattended.
             risks: moves_money, irreversible
+            ! we changed this: no guard -> human_approval
+              It was judged to need a guard and then given none, so it
+              defaults to asking a person, which is the safe way to be wrong.
             -> human_approval
-               Added automatically: this step was judged to need a guard, but none
-               was specified. Defaulting to asking a person, which is the safe
-               assumption.
+               Nothing here goes out unattended, so a person is asked first.
 
 [ auto  ]  mark_as_paid
 
 [ guard ]  delete_email
-            Once the payment is done and logged, a computer can move or delete the
-            email to keep things tidy. Flagged automatically from what this step
-            does, rather than by judgement.
+            Once the payment is done and logged, a computer can move or
+            delete the email to keep things tidy.
             risks: irreversible
+            ! we changed this: nothing flagged -> irreversible
+              Read off what the step says it does: it cannot be undone.
+              Spotted in code rather than by judgement.
+            ! we changed this: fully_automatable -> automatable_with_control
+              It came back safe to run unattended, but it cannot be undone,
+              and nothing like that is left alone here.
+            ! we changed this: no guard -> human_approval
+              It was judged to need a guard and then given none, so it
+              defaults to asking a person, which is the safe way to be wrong.
             -> human_approval
+               Nothing here goes out unattended, so a person is asked first.
 
 Runs on its own: 4   Needs a guard: 2   Stays with you: 0   Unclear: 0
 Start with: pay_invoice
 ```
 
-Two different mechanisms are visible there. The model worked out by itself that money
-leaving an account is different from updating a spreadsheet, and noticed the
-description never mentioned an approval step, so it asked.
+Every line beginning `!` is this project disagreeing with the model, and those
+lines are the reason it exists.
 
-It did not notice that deleting an email cannot be undone. That one was caught in
-code, which is why it says so.
+On the payment it was mostly right: it worked out on its own that money leaving an
+account is different from updating a spreadsheet, and it noticed the description
+never mentioned an approval, so it asked. It just forgot to attach the guard it had
+called for.
+
+On the last step it was wrong three times over. It did not notice that deleting an
+email cannot be undone, so it marked the step safe to run unattended, so it saw no
+reason to guard it. Each rule catches what the one before it let through, and the
+step comes out of the pipeline guarded anyway.
+
+None of that is in the prompt. It is `_normalise` in
+[`assess.py`](backend/app/assess.py), and the record of it is a field on the
+assessment that the model is not allowed to write: anything it puts there is
+discarded before validation, because a model that can edit the account of its own
+correction can write "nothing was changed" over the top of one.
 
 ## How it works
 
@@ -125,6 +147,14 @@ Two model calls, not one. Asking a single prompt to both *understand* a process 
 A step where the process branches must have at least two ways out, each saying what
 decides it. Models flatten decisions into straight lines constantly, so it is enforced
 in [`process.py`](backend/app/schemas/process.py) rather than requested in a prompt.
+
+**A written record of overruling the model.**
+The three rules above correct the model rather than rejecting it, which is right and
+leaves a hole: by the time anybody reads a corrected answer it looks identical to one
+that was right first time. Each correction is now a structured `Override` on the step
+saying what it was, what it became and why, shown on the page and in the CLI. The
+field is written only by our code, and a model filling it in has its version thrown
+away before validation.
 
 **A house rule on risk.**
 Any step that moves money, cannot be undone, or carries legal weight can never be
