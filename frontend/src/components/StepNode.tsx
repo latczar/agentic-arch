@@ -1,5 +1,6 @@
 import { Handle, Position } from "@xyflow/react";
 import type { NodeProps } from "@xyflow/react";
+import { VERDICT_LABEL } from "../labels";
 import type { StepKind, Verdict } from "../types";
 
 export interface StepNodeData extends Record<string, unknown> {
@@ -10,13 +11,6 @@ export interface StepNodeData extends Record<string, unknown> {
   hasControl: boolean;
   selected: boolean;
 }
-
-const VERDICT_LABEL: Record<Verdict, string> = {
-  fully_automatable: "runs itself",
-  automatable_with_control: "needs a guard",
-  human_required: "stays with you",
-  needs_more_info: "unclear",
-};
 
 export function StepNode({ data }: NodeProps) {
   const step = data as StepNodeData;
@@ -32,7 +26,10 @@ export function StepNode({ data }: NodeProps) {
       <div className="node__label">{step.label}</div>
       <div className="node__foot">
         <span className="node__verdict">{VERDICT_LABEL[verdict]}</span>
-        {step.hasControl && <span className="node__badge" title="Has a guard">guard</span>}
+        {/* On a step that already says it needs a guard, "guard" again is noise. */}
+        {step.hasControl && verdict !== "automatable_with_control" && (
+          <span className="node__badge" title="Has a guard">guard</span>
+        )}
       </div>
       <Handle type="source" position={Position.Bottom} />
     </div>

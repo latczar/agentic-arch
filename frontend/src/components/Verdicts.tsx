@@ -1,4 +1,5 @@
-import type { AutomationPlan, ProcessGraph, Verdict } from "../types";
+import { plainly, VERDICT_LABEL as LABEL } from "../labels";
+import type { AutomationPlan, Override, ProcessGraph, Verdict } from "../types";
 
 const ORDER: Verdict[] = [
   "automatable_with_control",
@@ -7,11 +8,10 @@ const ORDER: Verdict[] = [
   "fully_automatable",
 ];
 
-const LABEL: Record<Verdict, string> = {
-  fully_automatable: "Runs itself",
-  automatable_with_control: "Needs a guard",
-  human_required: "Stays with you",
-  needs_more_info: "Unclear",
+const OVERRIDE_KIND: Record<Override["kind"], string> = {
+  risk_added: "Risk added",
+  verdict_downgraded: "Verdict lowered",
+  control_added: "Guard added",
 };
 
 interface Props {
@@ -39,6 +39,18 @@ export function Verdicts({ graph, plan, selected, onSelect }: Props) {
   return (
     <section className="verdicts">
       <p className="verdicts__headline">{plan.headline}</p>
+
+      {/* The same counts as the list below it, drawn to scale. Hidden from
+          screen readers, which get the numbers from the list instead. */}
+      <div className="spread" aria-hidden="true">
+        {counts.map(({ verdict, count }) => (
+          <span
+            key={verdict}
+            className={`spread__part spread__part--${verdict}`}
+            style={{ flexGrow: count }}
+          />
+        ))}
+      </div>
 
       <ul className="tally">
         {counts.map(({ verdict, count }) => (
@@ -74,7 +86,10 @@ export function Verdicts({ graph, plan, selected, onSelect }: Props) {
               {(assessment.overrides ?? []).map((override, index) => (
                 <p key={index} className="override__line">
                   <span className="override__change">
-                    {override.was} <span aria-hidden="true">&rarr;</span> {override.now}
+                    <span className="override__kind">{OVERRIDE_KIND[override.kind]}</span>
+                    <s className="override__was">{plainly(override.was)}</s>{" "}
+                    <span aria-hidden="true">&rarr;</span>{" "}
+                    <strong className="override__now">{plainly(override.now)}</strong>
                   </span>
                   {override.because}
                 </p>

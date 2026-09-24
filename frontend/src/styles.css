@@ -76,6 +76,75 @@ body {
   color: var(--muted);
   max-width: 58ch;
   font-size: 1.0625rem;
+  text-wrap: balance;
+}
+
+/* The three verdicts, in the colours the diagram and the list use. */
+.key {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (max-width: 640px) {
+  .key {
+    grid-template-columns: 1fr;
+  }
+}
+
+.key__item {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border-left: 4px solid var(--unclear);
+  background: var(--unclear-bg);
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+.key__item strong {
+  display: block;
+  margin-bottom: 2px;
+}
+
+.key__item span {
+  color: var(--text);
+  opacity: 0.8;
+}
+
+.key__item--fully_automatable {
+  border-left-color: var(--auto);
+  background: var(--auto-bg);
+}
+
+.key__item--fully_automatable strong {
+  color: var(--auto);
+}
+
+.key__item--automatable_with_control {
+  border-left-color: var(--guard);
+  background: var(--guard-bg);
+}
+
+.key__item--automatable_with_control strong {
+  color: var(--guard);
+}
+
+.key__item--human_required {
+  border-left-color: var(--human);
+  background: var(--human-bg);
+}
+
+.key__item--human_required strong {
+  color: var(--human);
+}
+
+.masthead .key__rule {
+  margin-top: 12px;
+  max-width: 72ch;
+  font-size: 0.875rem;
 }
 
 /* Composer ---------------------------------------------------------------- */
@@ -174,6 +243,89 @@ button:disabled {
 
 /* Feedback ---------------------------------------------------------------- */
 
+/* Held back for a moment before it appears, so a recorded example, which
+   answers almost at once, does not flash a waiting panel on its way past. */
+.working {
+  margin-top: 20px;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  animation: working-in 0.2s ease 0.3s both;
+}
+
+@keyframes working-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Says "still going" without claiming to know how far along it is. The server
+   does not report progress, and a bar that fills up would be making it up. */
+.working__bar {
+  height: 4px;
+  margin-bottom: 14px;
+  border-radius: 999px;
+  background: var(--unclear-bg);
+  overflow: hidden;
+}
+
+.working__bar span {
+  display: block;
+  width: 35%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  animation: working-slide 1.4s ease-in-out infinite;
+}
+
+@keyframes working-slide {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
+
+.working__title {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0;
+  font-weight: 600;
+}
+
+.working__clock {
+  color: var(--muted);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.working__note {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .working {
+    animation: none;
+  }
+
+  .working__bar span {
+    width: 100%;
+    opacity: 0.5;
+    animation: none;
+  }
+}
+
 .error {
   margin-top: 16px;
   padding: 12px 14px;
@@ -246,8 +398,11 @@ button:disabled {
   max-width: 68ch;
 }
 
+/* As tall as the process needs, and never taller than the window leaves room
+   for, because it is pinned beside the list and has to be seen whole. */
 .diagram {
-  height: 620px;
+  height: min(var(--diagram-fits, 620px), calc(100vh - 180px));
+  min-height: 300px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface);
@@ -266,9 +421,9 @@ button:disabled {
 /* Nodes ------------------------------------------------------------------- */
 
 .node {
-  width: 250px;
-  min-height: 92px;
-  padding: 12px 14px;
+  width: 240px;
+  min-height: 88px;
+  padding: 10px 12px;
   border-radius: 10px;
   border: 1px solid var(--border);
   border-left: 4px solid var(--unclear);
@@ -276,7 +431,7 @@ button:disabled {
   box-shadow: var(--shadow);
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 4px;
   cursor: pointer;
   transition: box-shadow 0.12s ease, border-color 0.12s ease;
 }
@@ -326,8 +481,29 @@ button:disabled {
   font-size: 0.75rem;
 }
 
+/* A filled pill rather than grey text, so the diagram can be read by colour
+   alone when it has been zoomed out to fit a long process. */
 .node__verdict {
-  color: var(--muted);
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--unclear-bg);
+  color: var(--unclear);
+  font-weight: 500;
+}
+
+.node--fully_automatable .node__verdict {
+  background: var(--auto-bg);
+  color: var(--auto);
+}
+
+.node--automatable_with_control .node__verdict {
+  background: var(--guard-bg);
+  color: var(--guard);
+}
+
+.node--human_required .node__verdict {
+  background: var(--human-bg);
+  color: var(--human);
 }
 
 .node__badge {
@@ -344,6 +520,32 @@ button:disabled {
   margin: 0 0 14px;
   font-size: 1.05rem;
   line-height: 1.5;
+}
+
+/* The tally drawn to scale: one glance says whether this is mostly green. */
+.spread {
+  display: flex;
+  gap: 3px;
+  height: 8px;
+  margin: 0 0 10px;
+}
+
+.spread__part {
+  flex-basis: 0;
+  border-radius: 999px;
+  background: var(--unclear);
+}
+
+.spread__part--fully_automatable {
+  background: var(--auto);
+}
+
+.spread__part--automatable_with_control {
+  background: var(--guard);
+}
+
+.spread__part--human_required {
+  background: var(--human);
 }
 
 .tally {
@@ -510,11 +712,29 @@ button:disabled {
   margin: 6px 0 0;
 }
 
+/* Which rule fired, what the model said struck through, and what it became. */
 .override__change {
-  display: block;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.78rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 6px;
+  font-size: 0.82rem;
+  color: var(--text);
+}
+
+.override__kind {
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.override__was {
   color: var(--muted);
+}
+
+.override__now {
+  font-weight: 600;
 }
 
 /* The retrieved article ---------------------------------------------------- */

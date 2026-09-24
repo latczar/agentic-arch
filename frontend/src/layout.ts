@@ -1,8 +1,11 @@
 import dagre from "@dagrejs/dagre";
 import type { Node, Edge } from "@xyflow/react";
 
+// Kept in step with .node in styles.css. Dagre spaces the boxes by these
+// numbers, so a node drawn wider or taller than it was told about crowds its
+// neighbours and pulls the edges off centre.
 export const NODE_WIDTH = 240;
-export const NODE_HEIGHT = 92;
+export const NODE_HEIGHT = 88;
 
 // React Flow positions nodes wherever you tell it to and has no opinion about
 // layout, so something has to work out where they go. Dagre is the boring
@@ -11,7 +14,7 @@ export const NODE_HEIGHT = 92;
 export function layoutGraph(nodes: Node[], edges: Edge[]): Node[] {
   const graph = new dagre.graphlib.Graph();
   graph.setDefaultEdgeLabel(() => ({}));
-  graph.setGraph({ rankdir: "TB", nodesep: 48, ranksep: 64, marginx: 24, marginy: 24 });
+  graph.setGraph({ rankdir: "TB", nodesep: 40, ranksep: 44, marginx: 16, marginy: 16 });
 
   nodes.forEach((node) =>
     graph.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT }),

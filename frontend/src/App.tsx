@@ -18,6 +18,7 @@ import { Library } from "./components/Library";
 import { Playbook } from "./components/Playbook";
 import { Verdicts } from "./components/Verdicts";
 import { clearDraft, loadDraft, saveDraft } from "./draft";
+import { VERDICT_LABEL } from "./labels";
 import type {
   AnalyseResponse,
   Answer,
@@ -38,6 +39,10 @@ export default function App() {
   const [result, setResult] = useState<AnalyseResponse | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Whole seconds since the current request started, and whether it carries
+  // answers, so the wait can say what it is waiting for and for how long.
+  const [elapsed, setElapsed] = useState(0);
+  const [again, setAgain] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   // "copied" or "downloaded", so the message can say what actually happened.
@@ -67,6 +72,19 @@ export default function App() {
   // Shown only when something was actually brought back, so the notice is news
   // rather than furniture.
   const [restored, setRestored] = useState(false);
+
+  // Counted from the clock rather than by adding one a tick, because a
+  // background tab slows its timers down and the count would drift.
+  useEffect(() => {
+    if (!busy) return;
+    const started = Date.now();
+    setElapsed(0);
+    const timer = setInterval(
+      () => setElapsed(Math.floor((Date.now() - started) / 1000)),
+      1000,
+    );
+    return () => clearInterval(timer);
+  }, [busy]);
 
   useEffect(() => {
     fetchExamples().then(setExamples).catch(() => setExamples([]));
@@ -124,6 +142,7 @@ export default function App() {
 
   async function run(given: Answer[] = []) {
     setBusy(true);
+    setAgain(given.length > 0);
     setError(null);
     setResult(null);
     setSelected(null);
@@ -271,8 +290,30 @@ export default function App() {
         <h1>Automation Architect</h1>
         <p>
           Work out what is safe to automate before anybody builds it. Describe
-          something you do by hand, and see which parts a computer could take
-          over, which need a person to sign off, and which should stay with you.
+          something you do by hand, and every step comes back as one of three.
+        </p>
+
+        {/* The colours are taught here, once, so the diagram and the list can
+            use them without explaining themselves every time. */}
+        <ul className="key">
+          <li className="key__item key__item--fully_automatable">
+            <strong>{VERDICT_LABEL.fully_automatable}</strong>
+            <span>A computer can do it with nobody watching.</span>
+          </li>
+          <li className="key__item key__item--automatable_with_control">
+            <strong>{VERDICT_LABEL.automatable_with_control}</strong>
+            <span>A computer can do it, once a person signs off or a limit applies.</span>
+          </li>
+          <li className="key__item key__item--human_required">
+            <strong>{VERDICT_LABEL.human_required}</strong>
+            <span>Judgement that should not be handed over.</span>
+          </li>
+        </ul>
+
+        <p className="key__rule">
+          A step that moves money, cannot be undone or carries legal weight never
+          comes back as &ldquo;runs itself&rdquo;. That rule is in the code, so the
+          model cannot argue its way past it.
         </p>
       </header>
 
@@ -307,6 +348,11 @@ export default function App() {
             {replayCase && (
               <span className="composer__note">
                 Recorded example. Runs without an API key.
+              </span>
+            )}
+            {!replayCase && !busy && description.trim().length < 20 && (
+              <span className="composer__note">
+                A sentence or two is enough, or try an example below.
               </span>
             )}
             {restored && !replayCase && (
@@ -357,6 +403,26 @@ export default function App() {
       )}
 
       {error && <div className="error">{error}</div>}
+
+      {/* Ten to twenty seconds is a long time to look at a button that says it
+          is busy. This says what is happening, how long it usually takes, and
+          how long it has been, which is most of what makes a wait bearable. */}
+      {busy && !result && (
+        <section className="working" role="status">
+          <div className="working__bar" aria-hidden="true">
+            <span />
+          </div>
+          <p className="working__title">
+            {again ? "Working it out again with your answers" : "Working through your process"}
+            {elapsed > 0 && <span className="working__clock" aria-hidden="true">{elapsed}s</span>}
+          </p>
+          <p className="working__note">
+            {elapsed < 30
+              ? "It maps the steps, judges each one, then our checks go over every verdict. Usually 10 to 20 seconds."
+              : "Taking longer than usual. If it runs out of time it stops and says so, rather than leaving you waiting."}
+          </p>
+        </section>
+      )}
 
       {/* The whole reason retrieval is its own request. When the model times out
           there is no analysis to hang this off, and an article about the job

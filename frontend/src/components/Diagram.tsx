@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, type CSSProperties } from "react";
 import {
   Background,
   Controls,
@@ -10,11 +10,21 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
-import { layoutGraph } from "../layout";
+import { layoutGraph, NODE_HEIGHT } from "../layout";
 import { StepNode, type StepNodeData } from "./StepNode";
 import type { AutomationPlan, ProcessGraph } from "../types";
 
 const nodeTypes = { step: StepNode };
+
+// Never past full size. A three-step process would otherwise be blown up to
+// fill the box, and text at 180% looks like a mistake rather than a diagram.
+const FIT = { padding: 0.08, maxZoom: 1 };
+
+// The tallest the box gets, and the shortest. In between it takes the height
+// of the process, so a short one is not a few boxes floating in a large empty
+// frame and a long one is not shrunk further than it has to be.
+const TALLEST = 760;
+const SHORTEST = 300;
 
 interface Props {
   graph: ProcessGraph;
@@ -43,7 +53,7 @@ function RefitOnResize() {
       // Coalesced into the next frame. A drag-resize fires this continuously,
       // and re-fitting on every pixel is work nobody sees.
       cancelAnimationFrame(frame.current);
-      frame.current = requestAnimationFrame(() => fitView({ padding: 0.15 }));
+      frame.current = requestAnimationFrame(() => fitView(FIT));
     });
 
     observer.observe(parent);
@@ -95,14 +105,20 @@ function Canvas({ graph, plan, selected, onSelect }: Props) {
     return { nodes: layoutGraph(raw, flowEdges), edges: flowEdges };
   }, [graph, plan, selected]);
 
+  // How tall the process is at full size, plus the fit padding and the margin
+  // dagre leaves. The stylesheet caps it by the window as well, because this is
+  // pinned beside the verdicts and has to fit on the screen to be any use.
+  const drawn = Math.max(0, ...nodes.map((node) => node.position.y)) + NODE_HEIGHT;
+  const fits = Math.min(TALLEST, Math.max(SHORTEST, Math.round(drawn * 1.2 + 32)));
+
   return (
-    <div className="diagram">
+    <div className="diagram" style={{ "--diagram-fits": `${fits}px` } as CSSProperties}>
       <ReactFlow
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
         fitView
-        fitViewOptions={{ padding: 0.15 }}
+        fitViewOptions={FIT}
         proOptions={{ hideAttribution: false }}
         onNodeClick={(_, node) => onSelect(node.id)}
         onPaneClick={() => onSelect(null)}
