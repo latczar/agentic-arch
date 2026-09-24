@@ -27,3 +27,11 @@ export function plainly(value: string): string {
     .map((part) => VERDICT_LABEL[part as Verdict]?.toLowerCase() ?? part.replace(/_/g, " "))
     .join(", ");
 }
+
+/** Anything needing attention first, and the steps that simply run last. */
+export const VERDICT_ORDER: Verdict[] = [
+  "automatable_with_control",
+  "human_required",
+  "needs_more_info",
+  "fully_automatable",
+];

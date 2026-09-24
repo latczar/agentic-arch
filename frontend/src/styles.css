@@ -44,6 +44,12 @@
   box-sizing: border-box;
 }
 
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
 body {
   margin: 0;
   background: var(--bg);
@@ -246,12 +252,6 @@ button:disabled {
 /* Held back for a moment before it appears, so a recorded example, which
    answers almost at once, does not flash a waiting panel on its way past. */
 .working {
-  margin-top: 20px;
-  padding: 16px 18px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: var(--shadow);
   animation: working-in 0.2s ease 0.3s both;
 }
 
@@ -357,12 +357,198 @@ button:disabled {
 
 /* Results ----------------------------------------------------------------- */
 
+/* One surface for every block of the result, so they read as a set. */
+.card {
+  margin: 0;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.card h2 {
+  margin: 0 0 8px;
+  font-size: 1.1rem;
+  letter-spacing: -0.01em;
+}
+
+.card__label,
+.playbook__label {
+  display: block;
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.report {
+  margin-top: 32px;
+}
+
+/* Anything the contents bar jumps to stops clear of the bar, not under it. */
+.report [id] {
+  scroll-margin-top: 72px;
+}
+
+.report__head {
+  margin-bottom: 16px;
+}
+
+/* Where everything is, pinned to the top once the page scrolls. */
+.contents {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  gap: 4px;
+  margin: 0 -16px 16px;
+  padding: 10px 16px;
+  overflow-x: auto;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  scrollbar-width: none;
+}
+
+.contents__link {
+  flex: 0 0 auto;
+  padding: 5px 12px;
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.contents__link:hover {
+  color: var(--text);
+  background: var(--unclear-bg);
+}
+
+.contents__link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.contents__link--current {
+  color: var(--surface);
+  background: var(--accent);
+}
+
+.contents__link--current:hover {
+  color: var(--surface);
+  background: var(--accent);
+}
+
+/* Four links in a phone's width without the last one scrolling out of sight. */
+@media (max-width: 480px) {
+  .contents {
+    gap: 2px;
+  }
+
+  .contents__link {
+    padding: 5px 9px;
+    font-size: 0.8125rem;
+  }
+}
+
+/* The answer and the article, side by side, above everything else. Flex
+   rather than grid so either one alone takes the whole row. */
+.overview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-start;
+  margin-top: 20px;
+}
+
+.report .overview {
+  margin-top: 0;
+}
+
+.overview > * {
+  flex: 1 1 320px;
+  margin: 0;
+}
+
+.overview > :first-child {
+  flex-grow: 1.35;
+}
+
+.answer__headline {
+  margin: 6px 0 14px;
+  font-size: 1.05rem;
+  line-height: 1.5;
+}
+
+.answer .tally {
+  margin-bottom: 0;
+}
+
+.answer__next {
+  margin: 14px 0 0;
+  padding: 12px 0 0;
+  border-top: 1px solid var(--border);
+  list-style: none;
+  font-size: 0.9rem;
+}
+
+.answer__next li + li {
+  margin-top: 6px;
+}
+
+.answer__next a {
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.answer__next .linkish {
+  font-weight: 500;
+}
+
+.steps {
+  margin-top: 36px;
+}
+
+.section__head h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  letter-spacing: -0.015em;
+}
+
+.section__head p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
 .results {
   display: grid;
   grid-template-columns: minmax(0, 1.35fr) minmax(320px, 1fr);
   gap: 24px;
-  margin-top: 32px;
+  margin-top: 16px;
   align-items: start;
+}
+
+/* What to do next: the questions, and the time it takes, side by side. */
+.next {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 1fr);
+  gap: 24px;
+  margin-top: 36px;
+  align-items: start;
+}
+
+/* On its own when there are no questions, and no wider than it reads well. */
+.next > .time:only-child {
+  max-width: 560px;
+}
+
+@media (max-width: 900px) {
+  .next {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 900px) {
@@ -376,7 +562,7 @@ button:disabled {
    scrolling past a column of nothing. */
 .results__diagram {
   position: sticky;
-  top: 24px;
+  top: 72px;
 }
 
 @media (max-width: 900px) {
@@ -385,7 +571,7 @@ button:disabled {
   }
 }
 
-.results h2 {
+.report__head h2 {
   margin: 0;
   font-size: 1.4rem;
   letter-spacing: -0.015em;
@@ -401,7 +587,7 @@ button:disabled {
 /* As tall as the process needs, and never taller than the window leaves room
    for, because it is pinned beside the list and has to be seen whole. */
 .diagram {
-  height: min(var(--diagram-fits, 620px), calc(100vh - 180px));
+  height: min(var(--diagram-fits, 620px), calc(100vh - 96px));
   min-height: 300px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -515,12 +701,6 @@ button:disabled {
 }
 
 /* Verdict panel ----------------------------------------------------------- */
-
-.verdicts__headline {
-  margin: 0 0 14px;
-  font-size: 1.05rem;
-  line-height: 1.5;
-}
 
 /* The tally drawn to scale: one glance says whether this is mostly green. */
 .spread {
@@ -740,16 +920,16 @@ button:disabled {
 /* The retrieved article ---------------------------------------------------- */
 
 .playbook {
-  margin-top: 28px;
-  padding: 14px 16px;
+  padding: 16px 18px;
   border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
   border-radius: var(--radius);
   background: var(--surface);
+  box-shadow: var(--shadow);
 }
 
-.results__panel--alone {
-  max-width: 640px;
-  margin: 20px auto 0;
+.playbook--none {
+  border-left-color: var(--border);
 }
 
 .playbook__head h3 {
@@ -757,12 +937,6 @@ button:disabled {
   font-size: 1rem;
 }
 
-.playbook__label {
-  font-size: 0.7rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
 
 /* Says plainly that this is a library article about the job in general, not a
    reading of what the person wrote. Conflating the two is the failure mode of
@@ -919,19 +1093,10 @@ button:disabled {
 
 /* Questions --------------------------------------------------------------- */
 
-.questions {
-  margin-top: 28px;
-}
-
-.questions h3 {
-  font-size: 0.95rem;
-  margin: 0 0 10px;
-}
-
 .question {
-  border-left: 2px solid var(--border);
-  padding-left: 12px;
-  margin-bottom: 14px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
 }
 
 .question__text {
@@ -1098,9 +1263,7 @@ button:disabled {
 /* Time arithmetic --------------------------------------------------------- */
 
 .effort {
-  margin-top: 28px;
-  padding-top: 20px;
-  border-top: 1px solid var(--border);
+  margin: 0;
 }
 
 .effort__pitch {

@@ -1,12 +1,7 @@
-import { plainly, VERDICT_LABEL as LABEL } from "../labels";
-import type { AutomationPlan, Override, ProcessGraph, Verdict } from "../types";
+import { useEffect, useRef } from "react";
 
-const ORDER: Verdict[] = [
-  "automatable_with_control",
-  "human_required",
-  "needs_more_info",
-  "fully_automatable",
-];
+import { plainly, VERDICT_LABEL as LABEL, VERDICT_ORDER as ORDER } from "../labels";
+import type { AutomationPlan, Override, ProcessGraph } from "../types";
 
 const OVERRIDE_KIND: Record<Override["kind"], string> = {
   risk_added: "Risk added",
@@ -25,10 +20,19 @@ export function Verdicts({ graph, plan, selected, onSelect }: Props) {
   const nameOf = (id: string) =>
     graph.steps.find((s) => s.id === id)?.name ?? id;
 
-  const counts = ORDER.map((verdict) => ({
-    verdict,
-    count: plan.assessments.filter((a) => a.verdict === verdict).length,
-  })).filter((c) => c.count > 0);
+  // Picking a step in the diagram, or from "worth doing first", brings its
+  // verdict into view. Only when it is off screen: a card already in sight
+  // jumping about under the pointer is worse than not moving at all.
+  const list = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (!selected) return;
+    const card = list.current?.querySelector<HTMLElement>(`[data-step="${CSS.escape(selected)}"]`);
+    if (!card) return;
+    const box = card.getBoundingClientRect();
+    if (box.top < 72 || box.bottom > window.innerHeight) {
+      card.scrollIntoView({ block: "center" });
+    }
+  }, [selected]);
 
   // Anything needing attention first. A list that opens with six green rows
   // buries the one thing the reader actually has to decide about.
@@ -37,32 +41,11 @@ export function Verdicts({ graph, plan, selected, onSelect }: Props) {
   );
 
   return (
-    <section className="verdicts">
-      <p className="verdicts__headline">{plan.headline}</p>
-
-      {/* The same counts as the list below it, drawn to scale. Hidden from
-          screen readers, which get the numbers from the list instead. */}
-      <div className="spread" aria-hidden="true">
-        {counts.map(({ verdict, count }) => (
-          <span
-            key={verdict}
-            className={`spread__part spread__part--${verdict}`}
-            style={{ flexGrow: count }}
-          />
-        ))}
-      </div>
-
-      <ul className="tally">
-        {counts.map(({ verdict, count }) => (
-          <li key={verdict} className={`tally__item tally__item--${verdict}`}>
-            <strong>{count}</strong> {LABEL[verdict].toLowerCase()}
-          </li>
-        ))}
-      </ul>
-
+    <section className="verdicts" ref={list}>
       {sorted.map((assessment) => (
         <article
           key={assessment.step_id}
+          data-step={assessment.step_id}
           className={`verdict verdict--${assessment.verdict} ${
             selected === assessment.step_id ? "verdict--active" : ""
           }`}

@@ -12,10 +12,13 @@ import {
   fetchShare,
   shareIdFromUrl,
 } from "./api";
+import { Contents, type Section } from "./components/Contents";
 import { Diagram } from "./components/Diagram";
 import { Effort } from "./components/Effort";
-import { Library } from "./components/Library";
+import { Library, NoPlaybook } from "./components/Library";
+import { Overview } from "./components/Overview";
 import { Playbook } from "./components/Playbook";
+import { Questions } from "./components/Questions";
 import { Verdicts } from "./components/Verdicts";
 import { clearDraft, loadDraft, saveDraft } from "./draft";
 import { VERDICT_LABEL } from "./labels";
@@ -276,6 +279,32 @@ export default function App() {
     : [];
   const repairs = attempts.filter((a) => !a.ok);
 
+  // The article has one place on the page, near the top, and keeps it. It
+  // arrives about a second after asking, long before the analysis, and moving
+  // it once the rest turns up would make the reader find it twice.
+  const article = playbook?.match ? (
+    <Playbook match={playbook.match} retriever={playbook.retriever} />
+  ) : playbook?.retriever && library.length > 0 ? (
+    <NoPlaybook library={library} />
+  ) : null;
+
+  // After a failure only a real match is worth keeping on screen. "No article
+  // for this job" under an error message is one more thing that went nowhere.
+  const early = busy ? article : playbook?.match ? article : null;
+
+  const given = answersGiven();
+
+  const sections: Section[] = result?.graph
+    ? [
+        { id: "summary", label: "Summary" },
+        { id: "steps", label: `Steps (${result.graph.steps.length})` },
+        ...(result.graph.questions.length > 0
+          ? [{ id: "questions", label: `Questions (${result.graph.questions.length})` }]
+          : []),
+        ...(result.plan ? [{ id: "time", label: "Time it takes" }] : []),
+      ]
+    : [];
+
   if (opening) {
     return (
       <div className="page">
@@ -404,32 +433,35 @@ export default function App() {
 
       {error && <div className="error">{error}</div>}
 
-      {/* Ten to twenty seconds is a long time to look at a button that says it
-          is busy. This says what is happening, how long it usually takes, and
-          how long it has been, which is most of what makes a wait bearable. */}
-      {busy && !result && (
-        <section className="working" role="status">
-          <div className="working__bar" aria-hidden="true">
-            <span />
-          </div>
-          <p className="working__title">
-            {again ? "Working it out again with your answers" : "Working through your process"}
-            {elapsed > 0 && <span className="working__clock" aria-hidden="true">{elapsed}s</span>}
-          </p>
-          <p className="working__note">
-            {elapsed < 30
-              ? "It maps the steps, judges each one, then our checks go over every verdict. Usually 10 to 20 seconds."
-              : "Taking longer than usual. If it runs out of time it stops and says so, rather than leaving you waiting."}
-          </p>
-        </section>
-      )}
-
-      {/* The whole reason retrieval is its own request. When the model times out
-          there is no analysis to hang this off, and an article about the job
-          somebody just described is a great deal better than an error alone. */}
-      {!result?.graph && playbook?.match && (
-        <div className="results__panel results__panel--alone">
-          <Playbook match={playbook.match} retriever={playbook.retriever} />
+      {/* Before the analysis lands: the wait, and the article beside it in the
+          place it will stay once the rest arrives. */}
+      {!result?.graph && (busy || early) && (
+        <div className="overview">
+          {/* Ten to twenty seconds is a long time to look at a button that says
+              it is busy. This says what is happening, how long it usually takes
+              and how long it has been, which is most of what makes a wait
+              bearable. */}
+          {busy && (
+            <section className="card working" role="status">
+              <div className="working__bar" aria-hidden="true">
+                <span />
+              </div>
+              <p className="working__title">
+                {again ? "Working it out again with your answers" : "Working through your process"}
+                {elapsed > 0 && (
+                  <span className="working__clock" aria-hidden="true">
+                    {elapsed}s
+                  </span>
+                )}
+              </p>
+              <p className="working__note">
+                {elapsed < 30
+                  ? "It maps the steps, judges each one, then our checks go over every verdict. Usually 10 to 20 seconds."
+                  : "Taking longer than usual. If it runs out of time it stops and says so, rather than leaving you waiting."}
+              </p>
+            </section>
+          )}
+          {early}
         </div>
       )}
 
@@ -452,9 +484,12 @@ export default function App() {
         </details>
       )}
 
+      {/* Overview first, then the detail on demand: the answer and the article
+          at the top, every step and its reasoning below them, and what to do
+          next after that. The bar keeps all of it one click away. */}
       {result?.graph && (
-        <main className="results">
-          <div className="results__diagram">
+        <main className="report">
+          <header className="report__head">
             <div className="results__head">
               <h2>{result.graph.title}</h2>
               <div className="results__buttons">
@@ -485,10 +520,10 @@ export default function App() {
               <div className="answered">
                 <strong>Worked out again using what you told it:</strong>
                 <ul>
-                  {usedAnswers.map((given) => (
-                    <li key={given.question}>
-                      <span className="answered__question">{given.question}</span>
-                      {given.answer}
+                  {usedAnswers.map((answer) => (
+                    <li key={answer.question}>
+                      <span className="answered__question">{answer.question}</span>
+                      {answer.answer}
                     </li>
                   ))}
                 </ul>
@@ -534,146 +569,83 @@ export default function App() {
                 </p>
               </div>
             )}
+          </header>
 
-            <Diagram
-              graph={result.graph}
-              plan={result.plan}
-              selected={selected}
-              onSelect={setSelected}
-            />
+          <Contents sections={sections} />
+
+          <div className="overview" id="summary">
+            {result.plan ? (
+              <Overview graph={result.graph} plan={result.plan} onPick={setSelected} />
+            ) : (
+              <section className="card answer">
+                <span className="card__label">The answer</span>
+                <p className="muted">
+                  The process was mapped, but the judgement stage did not complete.
+                </p>
+              </section>
+            )}
+            {article}
           </div>
 
-          <aside className="results__panel">
-            {result.plan ? (
-              <Verdicts
-                graph={result.graph}
-                plan={result.plan}
-                selected={selected}
-                onSelect={setSelected}
-              />
-            ) : (
-              <p className="muted">
-                The process was mapped, but the judgement stage did not complete.
+          <section className="steps" id="steps">
+            <header className="section__head">
+              <h2>Step by step</h2>
+              <p>
+                Anything that needs you comes first. Click a step in the diagram to
+                find out why it got its verdict.
               </p>
+            </header>
+
+            <div className="results">
+              <div className="results__diagram">
+                <Diagram
+                  graph={result.graph}
+                  plan={result.plan}
+                  selected={selected}
+                  onSelect={setSelected}
+                />
+              </div>
+
+              <div className="results__panel">
+                {result.plan && (
+                  <Verdicts
+                    graph={result.graph}
+                    plan={result.plan}
+                    selected={selected}
+                    onSelect={setSelected}
+                  />
+                )}
+              </div>
+            </div>
+          </section>
+
+          <div className="next">
+            {result.graph.questions.length > 0 && (
+              <Questions
+                questions={result.graph.questions}
+                readOnly={Boolean(shared)}
+                answers={answers}
+                onAnswer={(question, answer) =>
+                  setAnswers((current) => ({ ...current, [question]: answer }))
+                }
+                given={given.length}
+                busy={busy}
+                onRun={() => run(given)}
+              />
             )}
 
             {result.plan && (
-              <Effort
-                graph={result.graph}
-                plan={result.plan}
-                initial={shared?.effort ?? null}
-                onChange={handleEffort}
-              />
-            )}
-
-            {/* Before the questions, because it often answers one of them. */}
-            {playbook?.match && (
-              <Playbook match={playbook.match} retriever={playbook.retriever} />
-            )}
-
-            {/* Only when the search ran and found nothing. An empty retriever
-                name means it failed, and claiming the library has no article
-                for this job would then be a guess dressed up as a fact. */}
-            {playbook && !playbook.match && playbook.retriever && library.length > 0 && (
-              <section className="playbook playbook--none">
-                <header className="playbook__head">
-                  <span className="playbook__label">How this job usually goes</span>
-                  <h3>No article for this job yet</h3>
-                </header>
-                <p className="playbook__caveat">
-                  Nothing in the library was close enough to be worth showing.
-                </p>
-                {/* Closed, because a panel saying "nothing here" should not then
-                    take up more room than the panels that found something. */}
-                <details className="library library--inline">
-                  <summary>See the {library.length} jobs it covers</summary>
-                  <Library articles={library} />
-                </details>
+              <section className="card time" id="time">
+                <h2>Time it takes</h2>
+                <Effort
+                  graph={result.graph}
+                  plan={result.plan}
+                  initial={shared?.effort ?? null}
+                  onChange={handleEffort}
+                />
               </section>
             )}
-
-            {result.graph.questions.length > 0 && (
-              <section className="questions">
-                <h3>Worth asking before building anything</h3>
-                {!shared && (
-                  <p className="questions__lead">
-                    Answer any of these and it will work the process out again,
-                    treating what you say as fact rather than as a suggestion.
-                  </p>
-                )}
-
-                {result.graph.questions.map((question) => (
-                  <div key={question.id} className="question">
-                    {/* Said out loud, like the overrides. A question the model
-                        never asked should not pass itself off as one it did. */}
-                    {question.added_by_us && (
-                      <span className="question__ours">Asked by our checks, not the model</span>
-                    )}
-                    <p className="question__text">{question.question}</p>
-                    <p className="question__why">{question.why_it_matters}</p>
-
-                    {question.suggested_answers.length > 0 && (
-                      <div className="question__answers">
-                        {question.suggested_answers.map((answer, i) =>
-                          shared ? (
-                            <span key={i} className="question__suggestion">
-                              {answer}
-                            </span>
-                          ) : (
-                            <button
-                              key={i}
-                              type="button"
-                              className={`question__suggestion question__suggestion--pick ${
-                                answers[question.question] === answer
-                                  ? "question__suggestion--chosen"
-                                  : ""
-                              }`}
-                              onClick={() =>
-                                setAnswers((current) => ({
-                                  ...current,
-                                  [question.question]: answer,
-                                }))
-                              }
-                            >
-                              {answer}
-                            </button>
-                          ),
-                        )}
-                      </div>
-                    )}
-
-                    {!shared && (
-                      <input
-                        className="question__input"
-                        value={answers[question.question] ?? ""}
-                        placeholder="Or answer in your own words"
-                        onChange={(event) =>
-                          setAnswers((current) => ({
-                            ...current,
-                            [question.question]: event.target.value,
-                          }))
-                        }
-                      />
-                    )}
-                  </div>
-                ))}
-
-                {!shared && answersGiven().length > 0 && (
-                  <button
-                    className="questions__again"
-                    onClick={() => run(answersGiven())}
-                    disabled={busy}
-                  >
-                    {busy
-                      ? "Working through it again..."
-                      : `Analyse again with ${answersGiven().length} ${
-                          answersGiven().length === 1 ? "answer" : "answers"
-                        }`}
-                  </button>
-                )}
-              </section>
-            )}
-          </aside>
+          </div>
         </main>
       )}
 

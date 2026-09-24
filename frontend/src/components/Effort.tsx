@@ -90,7 +90,6 @@ export function Effort({ graph, plan, initial, onChange }: Props) {
 
   return (
     <section className="effort effort--open">
-      <h3>How much time this takes</h3>
 
       <p className="effort__frequency">
         I do this{" "}
